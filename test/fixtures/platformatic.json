@@ -1,0 +1,25 @@
+{
+  "$schema": "../../schema.json",
+  "module": "../../lib/index.js",
+  "kafka": {
+    "brokers": ["localhost:9092"],
+    "topics": [
+      {
+        "topic": "success",
+        "url": "http://localhost:3043/success"
+      },
+      {
+        "topic": "fail",
+        "url": "http://localhost:3043/fail"
+      },
+      {
+        "topic": "retry",
+        "url": "http://localhost:3043/retry"
+      }
+    ],
+    "consumer": {
+      "groupId": "plt-kafka-hooks",
+      "maxWaitTime": 500
+    }
+  }
+}

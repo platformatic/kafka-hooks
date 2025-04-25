@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schemas.platformatic.dev/wattpm/2.62.0.json",
+  "entrypoint": "hooks",
+  "services": [
+    {
+      "id": "hooks",
+      "path": "./lib",
+      "config": "../test/fixtures/platformatic.json"
+    }
+  ],
+  "server": {
+    "port": 3042
+  },
+  "logger": {
+    "level": "info"
+  }
+}

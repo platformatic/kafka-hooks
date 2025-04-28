@@ -24,6 +24,10 @@
   ],
   "type": "module",
   "main": "./lib/index.js",
+  "bin": {
+    "create-platformatic-kafka-hooks": "./cli/create.js",
+    "start-platformtic-kafka-hooks": "./cli/start.js"
+  },
   "scripts": {
     "build": "node -e 'import {schema} from \"./lib/schema.js\"; console.log(JSON.stringify(schema, null, 2))' > schema.json && json2ts > config.d.ts < schema.json",
     "lint": "eslint --cache",
@@ -33,13 +37,13 @@
     "recipient:start": "START_HOOK_RECIPIENT=true node test/fixtures/recipient-server.js"
   },
   "dependencies": {
-    "@platformatic/kafka": "^0.4.0",
-    "@platformatic/service": "^2.62.0",
+    "@platformatic/kafka": "^0.4.1",
+    "@platformatic/config": "^2.62.1",
+    "@platformatic/service": "^2.62.1",
     "@platformatic/utils": "^2.62.1",
     "http-errors-enhanced": "^3.0.2",
     "hwp": "^0.4.1",
-    "undici": "^7.8.0",
-    "wattpm": "^2.62.0"
+    "undici": "^7.8.0"
   },
   "devDependencies": {
     "c8": "^10.1.3",

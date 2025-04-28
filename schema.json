@@ -1291,6 +1291,15 @@
           "required": [
             "groupId"
           ]
+        },
+        "concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "serialization": {
+          "type": "string",
+          "resolvePath": true
         }
       },
       "required": [

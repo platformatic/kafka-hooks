@@ -328,6 +328,8 @@ export interface PlatformaticKafkaHooksConfiguration {
       }[];
       [k: string]: unknown;
     };
+    concurrency?: number;
+    serialization?: string;
     [k: string]: unknown;
   };
 }

@@ -2,6 +2,7 @@
   "$schema": "../../schema.json",
   "module": "../../lib/index.js",
   "kafka": {
+    "concurrency": 5,
     "brokers": ["localhost:9092"],
     "topics": [
       {

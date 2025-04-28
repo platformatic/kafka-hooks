@@ -33,10 +33,11 @@
     "recipient:start": "START_HOOK_RECIPIENT=true node test/fixtures/recipient-server.js"
   },
   "dependencies": {
-    "@platformatic/kafka": "^0.3.0",
+    "@platformatic/kafka": "^0.4.0",
     "@platformatic/service": "^2.62.0",
     "@platformatic/utils": "^2.62.1",
     "http-errors-enhanced": "^3.0.2",
+    "hwp": "^0.4.1",
     "undici": "^7.8.0",
     "wattpm": "^2.62.0"
   },

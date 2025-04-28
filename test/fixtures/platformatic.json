@@ -19,7 +19,10 @@
     ],
     "consumer": {
       "groupId": "plt-kafka-hooks",
-      "maxWaitTime": 500
+      "maxWaitTime": 500,
+      "sessionTimeout": 10000,
+      "rebalanceTimeout": 12000,
+      "heartbeatInterval": 1000
     }
   }
 }

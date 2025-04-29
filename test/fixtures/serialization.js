@@ -1,9 +1,9 @@
 export const mediaTypes = 'application/binary'
 
 export function serializer (value) {
-  return value.reverse()
+  return Buffer.from(value.toString().toUpperCase(), 'utf-8')
 }
 
 export function deserializer (value) {
-  return value.reverse()
+  return value.toString('utf-8').toLowerCase()
 }

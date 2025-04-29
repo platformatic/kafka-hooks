@@ -1,6 +1,7 @@
 {
   "$id": "https://schemas.platformatic.dev/@platformatic/kafka-hooks/0.1.0.json",
   "title": "Platformatic kafka-hooks configuration",
+  "version": "0.1.0",
   "type": "object",
   "properties": {
     "basePath": {
@@ -1099,8 +1100,15 @@
                 "type": "string"
               },
               "dlq": {
-                "type": "string",
-                "default": "plt-kafka-dlq"
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "default": "plt-kafka-dlq"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
               },
               "url": {
                 "type": "string"

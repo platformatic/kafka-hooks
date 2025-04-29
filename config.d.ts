@@ -256,7 +256,7 @@ export interface PlatformaticKafkaHooksConfiguration {
     topics: [
       {
         topic: string;
-        dlq?: string;
+        dlq?: string | boolean;
         url: string;
         method?: "POST" | "PUT" | "PATCH" | "DELETE";
         headers?: {
@@ -269,7 +269,7 @@ export interface PlatformaticKafkaHooksConfiguration {
       },
       ...{
         topic: string;
-        dlq?: string;
+        dlq?: string | boolean;
         url: string;
         method?: "POST" | "PUT" | "PATCH" | "DELETE";
         headers?: {

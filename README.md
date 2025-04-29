@@ -25,7 +25,7 @@ You can generate a standalone application with:
 npx --package @platformatic/kafka-hooks -c create-platformatic-kafka-hooks
 cd kafka-hooks-app
 npm i
-npx plt start
+npx platformatic start
 ```
 
 You can then edit your `.env` file and configure the `PLT_KAFKA_BROKER` env variable to select your Kafka broker.

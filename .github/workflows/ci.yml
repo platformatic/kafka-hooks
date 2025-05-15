@@ -28,6 +28,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
       - name: Start Kafka Cluster
-        run: docker compose up -d && wait-on tcp:9092
+        run: docker compose up -d && pnpx wait-on tcp:9092
       - name: Run Tests
         run: pnpm run ci

@@ -104,7 +104,7 @@ test('should generate a stackable app', async t => {
     engines: {
       node: '>= 22.14.0'
     },
-    name: basename(testDir),
+    name: 'stackable-app',
     scripts: {
       start: 'platformatic start',
       test: 'echo "No tests defined".'

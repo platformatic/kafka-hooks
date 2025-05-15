@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { join } from 'node:path'
+import { join, basename } from 'node:path'
 import { parseArgs } from 'node:util'
 import { Generator } from '../lib/generator.js'
 
@@ -25,6 +25,7 @@ async function execute () {
 
   generator.setConfig({
     targetDirectory: args.values.dir,
+    serviceName: basename(args.values.dir),
     port: parseInt(args.values.port),
     hostname: args.values.hostname,
     broker: args.values.broker,

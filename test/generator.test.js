@@ -115,7 +115,7 @@ test('should generate a stackable app', async t => {
 
   deepStrictEqual(stackableConfig, {
     $schema: `https://schemas.platformatic.dev/@platformatic/kafka-hooks/${kafkaHooksPackageJson.version}.json`,
-    module: `@platformatic/kafka-hooks@${kafkaHooksPackageJson.version}`,
+    module: `@platformatic/kafka-hooks`,
     kafka: {
       brokers: ['{PLT_KAFKA_BROKER}'],
       topics: [{ topic: '{PLT_KAFKA_TOPIC}', url: '{PLT_KAFKA_URL}' }],

@@ -242,15 +242,18 @@ test('should throw an error when serialization fails', async t => {
 })
 
 test('should crash the process when error processing fails', async t => {
-  let exitCode
+  t.plan(1)
 
-  const originalExit = process.exit
-  process.exit = function (code) {
-    exitCode = code
+  function onError (error) {
+    t.assert.equal(error.message, 'Failed to deserialize a message.')
   }
 
+  const unhandledRejectionList = process.listeners('unhandledRejection')
+  process.removeAllListeners('unhandledRejection')
+  process.on('unhandledRejection', onError)
   t.after(() => {
-    process.exit = originalExit
+    process.removeListener('unhandledRejection', onError)
+    process.on('unhandledRejection', ...unhandledRejectionList)
   })
 
   await startStackable(t, '', {
@@ -272,8 +275,6 @@ test('should crash the process when error processing fails', async t => {
     ]
   })
   await producer.close()
-
-  deepStrictEqual(exitCode, 1)
 })
 
 test('should support custom serializer', async t => {

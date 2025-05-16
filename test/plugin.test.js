@@ -112,6 +112,7 @@ test.only('should produce messages to Kafka and then forward them to the target 
   deepStrictEqual(kafkaMessage.value, value)
   deepStrictEqual(message.body, value)
   deepStrictEqual(message.headers[attemptHeader], '1')
+  deepStrictEqual(message.headers['content-type'], 'text/plain')
 })
 
 test('should return an error for non existing errors', async t => {

@@ -56,7 +56,11 @@ async function startStackable (t, url = 'http://localhost:3043', opts = {}) {
   }
 
   const server = await buildServer(config, stackable)
-  t.after(() => server.close())
+  t.after(async () => {
+    t.diagnostic('Stopping server')
+    await server.close()
+    t.diagnostic('server stopped')
+  })
 
   return server
 }
@@ -94,8 +98,9 @@ test('should produce messages to Kafka and then forward them to the target serve
   const value = randomUUID()
   await publishMessage(server, 'plt-kafka-hooks-success', value)
 
-  const [kafkaMessage] = await once(stream, 'data')
-  const [message] = await once(events, 'success')
+  t.diagnostic('Waiting for messages ...')
+  const [[kafkaMessage], [message]] = await Promise.all([once(stream, 'data'), once(events, 'success')])
+  t.diagnostic('Received message from Kafka')
 
   deepStrictEqual(kafkaMessage.key, Buffer.alloc(0))
   deepStrictEqual(kafkaMessage.value, value)
@@ -130,8 +135,7 @@ test('should use the special header as the key', async t => {
   const value = randomUUID()
   await publishMessage(server, 'plt-kafka-hooks-success', value, { [keyHeader]: key })
 
-  const [kafkaMessage] = await once(stream, 'data')
-  const [message] = await once(events, 'success')
+  const [[kafkaMessage], [message]] = await Promise.all([once(stream, 'data'), once(events, 'success')])
 
   deepStrictEqual(kafkaMessage.key.toString('utf-8'), key)
   deepStrictEqual(message.body.key, key)
@@ -286,8 +290,7 @@ test('should support custom serializer', async t => {
   const value = randomUUID()
   await publishMessage(server, 'plt-kafka-hooks-success', value, { 'content-type': 'application/binary' })
 
-  const [kafkaMessage] = await once(stream, 'data')
-  const [message] = await once(events, 'success')
+  const [[kafkaMessage], [message]] = await Promise.all([once(stream, 'data'), once(events, 'success')])
 
   deepStrictEqual(kafkaMessage.key, Buffer.alloc(0))
   deepStrictEqual(kafkaMessage.value, value.toUpperCase())

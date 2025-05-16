@@ -2,7 +2,7 @@ import { safeRemove } from '@platformatic/utils'
 import { deepStrictEqual, strictEqual } from 'node:assert'
 import { mkdtemp, readdir, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import test from 'node:test'
 import { Generator } from '../lib/generator.js'
 

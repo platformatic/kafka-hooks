@@ -1,0 +1,4 @@
+onlyBuiltDependencies:
+  - protobufjs
+  - thread-cpu-usage
+  - unrs-resolver

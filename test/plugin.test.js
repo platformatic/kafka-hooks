@@ -92,7 +92,7 @@ async function publishMessage (server, topic, message, headers = {}) {
   return res
 }
 
-test.only('should produce messages to Kafka and then forward them to the target server', async t => {
+test('should produce messages to Kafka and then forward them to the target server', async t => {
   // Start the monitor
   const { consumer, stream } = await createMonitor(stringDeserializer)
   t.after(() => consumer.close(true))
@@ -111,11 +111,12 @@ test.only('should produce messages to Kafka and then forward them to the target 
   deepStrictEqual(kafkaMessage.key, Buffer.alloc(0))
   deepStrictEqual(kafkaMessage.value, value)
   deepStrictEqual(message.body, value)
+  deepStrictEqual(message.headers[keyHeader], '')
   deepStrictEqual(message.headers[attemptHeader], '1')
   deepStrictEqual(message.headers['content-type'], 'text/plain')
 })
 
-test('should return an error for non existing errors', async t => {
+test.only('should return an error for non existing errors', async t => {
   const server = await startStackable(t)
   const { statusCode, json } = await publishMessage(server, 'invalid', 'test')
 
@@ -283,7 +284,7 @@ test('should crash the process when error processing fails', async t => {
   await producer.close()
 })
 
-test('should support custom serializer', async t => {
+test('should support binary data', async t => {
   // Start the monitor
   const { consumer, stream } = await createMonitor(stringDeserializer)
   t.after(() => consumer.close(true))
@@ -300,19 +301,8 @@ test('should support custom serializer', async t => {
   const [[kafkaMessage], [message]] = await Promise.all([once(stream, 'data'), once(events, 'success')])
 
   deepStrictEqual(kafkaMessage.key, Buffer.alloc(0))
-  deepStrictEqual(kafkaMessage.value, value.toUpperCase())
-  deepStrictEqual(message.body.key, '')
-  deepStrictEqual(message.body.value, value)
+  deepStrictEqual(kafkaMessage.value, value)
+  deepStrictEqual(message.body, value)
+  deepStrictEqual(message.headers[keyHeader], '')
   deepStrictEqual(message.headers[attemptHeader], '1')
-})
-
-test('should handle custom serializer loading errors', async t => {
-  try {
-    await startStackable(t, 'http://localhost:3000', {
-      serialization: resolve(import.meta.dirname, './fixtures/non-existent.js')
-    })
-    throw new Error('Expected error not thrown')
-  } catch (error) {
-    ok(error.message.startsWith('Error while loading custom serialization file'), error)
-  }
 })

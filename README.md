@@ -122,34 +122,6 @@ Each item in the `topics` array supports the following options:
 | `brokers`       | The list of Kafka brokers in the form `host:port`.                                                 | None    |
 | `consumer`      | Any option supported by a [@platformatic/kafka](https://github.com/platformatic/kafka) `Consumer`. | None    |
 | `concurrency`   | How many messages to process in parallel.                                                          | `10`    |
-| `serialization` | Configure custom serializers. See section below.                                                   | None    |
-
-### Custom Serialization
-
-You can provide custom serialization logic:
-
-```javascript
-// mediaTypes is optional
-export const mediaTypes = 'application/binary'
-
-export function serializer(value) {
-  return Buffer.from(value.toString().toUpperCase(), 'utf-8')
-}
-
-export function deserializer(value) {
-  return value.toString('utf-8').toLowerCase()
-}
-```
-
-Then in your `platformatic.json` file:
-
-```json
-{
-  "kafka": {
-    "serialization": "serialization.js"
-  }
-}
-```
 
 ## License
 

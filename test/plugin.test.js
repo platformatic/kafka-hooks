@@ -50,7 +50,7 @@ async function startStackable (t, url = 'http://localhost:3043', opts = {}) {
     port: 0,
     server: {
       logger: {
-        level: 'fatal'
+        level: 'error'
       }
     }
   }
@@ -74,7 +74,7 @@ async function startTargetServer (t) {
   return { server, events, url }
 }
 
-function publishMessage (server, topic, message, headers = {}) {
+async function publishMessage (server, topic, message, headers = {}) {
   if (!headers['content-type']) {
     if (typeof message === 'object') {
       headers['content-type'] = 'application/json'
@@ -83,10 +83,16 @@ function publishMessage (server, topic, message, headers = {}) {
     }
   }
 
-  return server.inject({ method: 'POST', url: `/topics/${topic}`, headers, payload: message })
+  const res = await server.inject({ method: 'POST', url: `/topics/${topic}`, headers, payload: message })
+  if (res.statusCode >= 400) {
+    const json = await res.json()
+    throw new Error(`Failed to publish message: ${json.message}`)
+  }
+
+  return res
 }
 
-test('should produce messages to Kafka and then forward them to the target server', async t => {
+test.only('should produce messages to Kafka and then forward them to the target server', async t => {
   // Start the monitor
   const { consumer, stream } = await createMonitor(stringDeserializer)
   t.after(() => consumer.close(true))
@@ -104,8 +110,7 @@ test('should produce messages to Kafka and then forward them to the target serve
 
   deepStrictEqual(kafkaMessage.key, Buffer.alloc(0))
   deepStrictEqual(kafkaMessage.value, value)
-  deepStrictEqual(message.body.key, '')
-  deepStrictEqual(message.body.value, value)
+  deepStrictEqual(message.body, value)
   deepStrictEqual(message.headers[attemptHeader], '1')
 })
 

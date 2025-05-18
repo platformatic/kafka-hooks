@@ -13,7 +13,7 @@ Then you can:
 
 - Consume messages from Kafka topics and forward to HTTP endpoints.
 - Send messages to Kafka topics via HTTP API.
-- Custom message serialization/deserialization.
+- Direct binary message passing.
 - Configurable retries and concurrency.
 - Dead Letter Queue (DLQ) for failed messages.
 
@@ -122,6 +122,71 @@ Each item in the `topics` array supports the following options:
 | `brokers`       | The list of Kafka brokers in the form `host:port`.                                                 | None    |
 | `consumer`      | Any option supported by a [@platformatic/kafka](https://github.com/platformatic/kafka) `Consumer`. | None    |
 | `concurrency`   | How many messages to process in parallel.                                                          | `10`    |
+
+## Dead Letter Queue (DLQ)
+
+When a message fails to be delivered after the configured number of retries, it's sent to a Dead Letter Queue (DLQ) topic for later inspection or processing.
+
+### DLQ Configuration
+
+By default, failed messages are sent to the `plt-kafka-hooks-dlq` topic. You can:
+
+- Change the DLQ topic name by setting the `dlq` option in the topic configuration
+- Disable DLQ entirely by setting `dlq: false` in the topic configuration
+
+```json
+{
+  "kafka": {
+    "topics": [
+      {
+        "topic": "events",
+        "url": "https://service.example.com",
+        "dlq": "custom-dlq-topic"  // Custom DLQ topic name
+      },
+      {
+        "topic": "notifications",
+        "url": "https://service.example.com/notifications",
+        "dlq": false  // Disable DLQ for this topic
+      }
+    ]
+  }
+}
+```
+
+### DLQ Message Format
+
+Messages sent to the DLQ contain detailed information about the failure:
+
+```json
+{
+  "key": "original-message-key",
+  "value": "base64-encoded-original-message",
+  "headers": {
+    "original-header-key": "original-header-value"
+  },
+  "topic": "original-topic",
+  "partition": 0,
+  "offset": "1234",
+  "errors": [
+    {
+      "statusCode": 500,
+      "error": "Internal Server Error",
+      "message": "Failed to process message"
+    }
+  ],
+  "retries": 3
+}
+```
+
+The original message value is preserved as a base64-encoded string to maintain its exact binary content.
+
+### Processing DLQ Messages
+
+DLQ messages can be consumed and processed using standard Kafka consumer tools. When reprocessing, you may want to:
+
+1. Decode the base64-encoded value
+2. Examine the errors to understand why processing failed
+3. Fix any issues and re-submit the message to the original topic
 
 ## License
 

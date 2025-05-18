@@ -1,14 +1,14 @@
-import { Producer, sleep, stringDeserializer, stringSerializers, jsonDeserializer } from '@platformatic/kafka'
+import { sleep, stringDeserializer, jsonDeserializer } from '@platformatic/kafka'
 import { buildServer } from '@platformatic/service'
-import { NOT_FOUND, UNSUPPORTED_MEDIA_TYPE } from 'http-errors-enhanced'
-import { deepStrictEqual, ok } from 'node:assert'
+import { NOT_FOUND } from 'http-errors-enhanced'
+import { deepStrictEqual } from 'node:assert'
 import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { attemptHeader, defaultDlqTopic, keyHeader } from '../lib/definitions.js'
 import { stackable } from '../lib/index.js'
-import { createMonitor, safeJsonDeserializer } from './fixtures/kafka-monitor.js'
+import { createMonitor } from './fixtures/kafka-monitor.js'
 import { createTargetServer } from './fixtures/target-server.js'
 
 async function startStackable (t, url = 'http://localhost:3043', opts = {}) {

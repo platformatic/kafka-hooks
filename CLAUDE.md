@@ -45,7 +45,7 @@ Kafka-hooks is a library that integrates Kafka messaging with HTTP endpoints, pr
 
 1. **Consume to HTTP**: Consume messages from Kafka topics and forward them to HTTP endpoints
 2. **HTTP to Produce**: Publish messages to Kafka topics via HTTP API
-3. **Message Processing**: Support for custom serialization/deserialization, configurable retries, and concurrency
+3. **Message Processing**: Direct passing of message content with configurable retries and concurrency
 4. **Error Handling**: Dead Letter Queue (DLQ) for failed messages
 
 ### Core Components
@@ -54,7 +54,7 @@ Kafka-hooks is a library that integrates Kafka messaging with HTTP endpoints, pr
    - Main plugin exposing HTTP API for publishing messages
    - Handles Kafka consumer setup and message processing
    - Manages DLQ for failed messages
-   - Supports custom serialization/deserialization
+   - Passes message content directly without custom serialization
 
 2. **Schema (`lib/schema.js`)**: 
    - Defines configuration schema for the library
@@ -86,4 +86,3 @@ Configuration is defined in `platformatic.json` with:
 - Topic mappings to HTTP endpoints
 - Consumer group configuration
 - Retry and concurrency settings
-- Custom serialization options

@@ -16,6 +16,10 @@ export async function createTargetServer () {
 
   const events = new EventEmitter()
 
+  server.addContentTypeParser(/^.*/, { parseAs: 'string' }, (request, payload, done) => {
+    done(null, payload)
+  })
+
   await server.post('/success', async (request, reply) => {
     events.emit('success', collectBody(request), 1)
     reply.status(NO_CONTENT).send()

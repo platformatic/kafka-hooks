@@ -84,6 +84,8 @@ async function publishMessage (server, topic, message, headers = {}) {
     }
   }
 
+  headers['content-length'] = '' + Buffer.byteLength(message)
+
   const res = await server.inject({
     method: 'POST',
     url: `/topics/${topic}`,
@@ -123,6 +125,30 @@ test('should produce messages to Kafka and then forward them to the target serve
   deepStrictEqual(message.headers[keyHeader], '')
   deepStrictEqual(message.headers[attemptHeader], '1')
   deepStrictEqual(message.headers['content-type'], 'text/plain')
+})
+
+test('should produce messages to Kafka and then forward them to the target server (JSON)', async t => {
+  // Start the monitor
+  const { consumer, stream } = await createMonitor(stringDeserializer)
+  t.after(() => consumer.close(true))
+
+  // Start the target server
+  const { events, url } = await startTargetServer(t)
+
+  const server = await startStackable(t, url)
+  const value = { a: 1, b: 2 }
+  await publishMessage(server, 'plt-kafka-hooks-success', value)
+
+  t.diagnostic('Waiting for messages ...')
+  const [[kafkaMessage], [message]] = await Promise.all([once(stream, 'data'), once(events, 'success')])
+  t.diagnostic('Received message from Kafka')
+
+  deepStrictEqual(kafkaMessage.key, Buffer.alloc(0))
+  deepStrictEqual(JSON.parse(kafkaMessage.value), value)
+  deepStrictEqual(message.body, value)
+  deepStrictEqual(message.headers[keyHeader], '')
+  deepStrictEqual(message.headers[attemptHeader], '1')
+  deepStrictEqual(message.headers['content-type'], 'application/json')
 })
 
 test('should return an error for non existing errors', async t => {

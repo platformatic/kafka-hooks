@@ -291,13 +291,13 @@ test('integration: error handling with custom status codes', async t => {
 test('integration: demonstrates microservice communication pattern', async t => {
   /*
    * This test demonstrates how kafka-hooks enables a microservice architecture:
-   * 
+   *
    * 1. API Gateway (kafka-hooks) exposes HTTP endpoints
-   * 2. Gateway publishes requests to Kafka topics 
+   * 2. Gateway publishes requests to Kafka topics
    * 3. Processing services consume from Kafka topics
    * 4. Processing services publish responses to Kafka topics
    * 5. Gateway consumes responses and returns to HTTP clients
-   * 
+   *
    * Benefits:
    * - Decoupling: Services communicate via Kafka, not direct HTTP
    * - Reliability: Kafka provides durability and retry semantics
@@ -399,10 +399,10 @@ test('integration: demonstrates microservice communication pattern', async t => 
 
   // Gateway returns response to client
   const clientResponse = await clientRequest
-  
+
   t.assert.strictEqual(clientResponse.statusCode, 200)
   const data = clientResponse.json()
-  
+
   // Verify complete data flow
   t.assert.strictEqual(data.userId, 'emp789')
   t.assert.strictEqual(data.profile.name, 'Jane Smith')

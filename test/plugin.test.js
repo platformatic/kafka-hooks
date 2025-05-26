@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
-import { attemptHeader, correlationIdHeader, defaultDlqTopic, keyHeader } from '../lib/definitions.js'
+import { attemptHeader, correlationIdHeader, defaultDlqTopic, keyHeader, pathParamsHeader, queryStringHeader } from '../lib/definitions.js'
 import { stackable } from '../lib/index.js'
 import { createMonitor } from './fixtures/kafka-monitor.js'
 import { createTargetServer } from './fixtures/target-server.js'
@@ -378,4 +378,235 @@ test('should timeout request/response when no response is received', async t => 
   t.assert.ok(elapsed >= 1000)
   const json = response.json()
   t.assert.strictEqual(json.code, 'HTTP_ERROR_REQUEST_TIMEOUT')
+})
+
+test('should handle request/response pattern with path parameters', async t => {
+  // Create a custom monitor for the request topic
+  const requestConsumer = new Consumer({
+    groupId: randomUUID(),
+    bootstrapBrokers: 'localhost:9092',
+    maxWaitTime: 500,
+    deserializers: {
+      value: stringDeserializer
+    }
+  })
+
+  await requestConsumer.metadata({ topics: ['plt-kafka-hooks-request'], autocreateTopics: true })
+  const requestStream = await requestConsumer.consume({ topics: ['plt-kafka-hooks-request'] })
+  t.after(() => requestConsumer.close(true))
+
+  const server = await startStackable(t, '', {
+    topics: [
+      {
+        topic: 'plt-kafka-hooks-response',
+        url: 'http://localhost:3043/response'
+      }
+    ],
+    requestResponse: [
+      {
+        path: '/api/users/:userId/orders/:orderId',
+        requestTopic: 'plt-kafka-hooks-request',
+        responseTopic: 'plt-kafka-hooks-response',
+        timeout: 5000
+      }
+    ]
+  })
+
+  // Simulate a request with path parameters
+  const requestPromise = server.inject({
+    method: 'POST',
+    url: '/api/users/123/orders/456',
+    payload: 'test request data',
+    headers: {
+      'content-type': 'text/plain'
+    }
+  })
+
+  // Wait for the request to be published to Kafka
+  const [requestMessage] = await once(requestStream, 'data')
+
+  // Convert headers map to object with string keys for easier access
+  const headers = {}
+  for (const [key, value] of requestMessage.headers) {
+    headers[key.toString()] = value.toString()
+  }
+
+  // Verify the request message has correlation ID and path params
+  t.assert.ok(headers[correlationIdHeader])
+  t.assert.ok(headers[pathParamsHeader])
+  t.assert.strictEqual(requestMessage.value, 'test request data')
+
+  // Verify path parameters are correctly passed
+  const pathParams = JSON.parse(headers[pathParamsHeader])
+  t.assert.strictEqual(pathParams.userId, '123')
+  t.assert.strictEqual(pathParams.orderId, '456')
+
+  // Simulate a response
+  const correlationId = headers[correlationIdHeader]
+  await publishMessage(server, 'plt-kafka-hooks-response', 'response data', {
+    [correlationIdHeader]: correlationId,
+    'content-type': 'text/plain',
+    'x-status-code': '200'
+  })
+
+  // Wait for the HTTP response
+  const response = await requestPromise
+  t.assert.strictEqual(response.statusCode, 200)
+  t.assert.strictEqual(response.payload, 'response data')
+})
+
+test('should handle request/response pattern with query string parameters', async t => {
+  // Create a custom monitor for the request topic
+  const requestConsumer = new Consumer({
+    groupId: randomUUID(),
+    bootstrapBrokers: 'localhost:9092',
+    maxWaitTime: 500,
+    deserializers: {
+      value: stringDeserializer
+    }
+  })
+
+  await requestConsumer.metadata({ topics: ['plt-kafka-hooks-request'], autocreateTopics: true })
+  const requestStream = await requestConsumer.consume({ topics: ['plt-kafka-hooks-request'] })
+  t.after(() => requestConsumer.close(true))
+
+  const server = await startStackable(t, '', {
+    topics: [
+      {
+        topic: 'plt-kafka-hooks-response',
+        url: 'http://localhost:3043/response'
+      }
+    ],
+    requestResponse: [
+      {
+        path: '/api/search',
+        requestTopic: 'plt-kafka-hooks-request',
+        responseTopic: 'plt-kafka-hooks-response',
+        timeout: 5000
+      }
+    ]
+  })
+
+  // Simulate a request with query string parameters
+  const requestPromise = server.inject({
+    method: 'POST',
+    url: '/api/search?q=test&limit=10&sort=date',
+    payload: 'search request',
+    headers: {
+      'content-type': 'text/plain'
+    }
+  })
+
+  // Wait for the request to be published to Kafka
+  const [requestMessage] = await once(requestStream, 'data')
+
+  // Convert headers map to object with string keys for easier access
+  const headers = {}
+  for (const [key, value] of requestMessage.headers) {
+    headers[key.toString()] = value.toString()
+  }
+
+  // Verify the request message has correlation ID and query string
+  t.assert.ok(headers[correlationIdHeader])
+  t.assert.ok(headers[queryStringHeader])
+  t.assert.strictEqual(requestMessage.value, 'search request')
+
+  // Verify query string parameters are correctly passed
+  const queryParams = JSON.parse(headers[queryStringHeader])
+  t.assert.strictEqual(queryParams.q, 'test')
+  t.assert.strictEqual(queryParams.limit, '10')
+  t.assert.strictEqual(queryParams.sort, 'date')
+
+  // Simulate a response
+  const correlationId = headers[correlationIdHeader]
+  await publishMessage(server, 'plt-kafka-hooks-response', 'search results', {
+    [correlationIdHeader]: correlationId,
+    'content-type': 'text/plain',
+    'x-status-code': '200'
+  })
+
+  // Wait for the HTTP response
+  const response = await requestPromise
+  t.assert.strictEqual(response.statusCode, 200)
+  t.assert.strictEqual(response.payload, 'search results')
+})
+
+test('should handle request/response pattern with both path and query parameters', async t => {
+  // Create a custom monitor for the request topic
+  const requestConsumer = new Consumer({
+    groupId: randomUUID(),
+    bootstrapBrokers: 'localhost:9092',
+    maxWaitTime: 500,
+    deserializers: {
+      value: stringDeserializer
+    }
+  })
+
+  await requestConsumer.metadata({ topics: ['plt-kafka-hooks-request'], autocreateTopics: true })
+  const requestStream = await requestConsumer.consume({ topics: ['plt-kafka-hooks-request'] })
+  t.after(() => requestConsumer.close(true))
+
+  const server = await startStackable(t, '', {
+    topics: [
+      {
+        topic: 'plt-kafka-hooks-response',
+        url: 'http://localhost:3043/response'
+      }
+    ],
+    requestResponse: [
+      {
+        path: '/api/users/:userId',
+        requestTopic: 'plt-kafka-hooks-request',
+        responseTopic: 'plt-kafka-hooks-response',
+        timeout: 5000
+      }
+    ]
+  })
+
+  // Simulate a request with both path and query parameters
+  const requestPromise = server.inject({
+    method: 'POST',
+    url: '/api/users/789?include=profile&expand=orders',
+    payload: '{"action": "update"}',
+    headers: {
+      'content-type': 'application/json'
+    }
+  })
+
+  // Wait for the request to be published to Kafka
+  const [requestMessage] = await once(requestStream, 'data')
+
+  // Convert headers map to object with string keys for easier access
+  const headers = {}
+  for (const [key, value] of requestMessage.headers) {
+    headers[key.toString()] = value.toString()
+  }
+
+  // Verify the request message has correlation ID, path params, and query string
+  t.assert.ok(headers[correlationIdHeader])
+  t.assert.ok(headers[pathParamsHeader])
+  t.assert.ok(headers[queryStringHeader])
+  t.assert.strictEqual(requestMessage.value, '{"action": "update"}')
+
+  // Verify path parameters
+  const pathParams = JSON.parse(headers[pathParamsHeader])
+  t.assert.strictEqual(pathParams.userId, '789')
+
+  // Verify query string parameters
+  const queryParams = JSON.parse(headers[queryStringHeader])
+  t.assert.strictEqual(queryParams.include, 'profile')
+  t.assert.strictEqual(queryParams.expand, 'orders')
+
+  // Simulate a response
+  const correlationId = headers[correlationIdHeader]
+  await publishMessage(server, 'plt-kafka-hooks-response', '{"status": "updated"}', {
+    [correlationIdHeader]: correlationId,
+    'content-type': 'application/json',
+    'x-status-code': '200'
+  })
+
+  // Wait for the HTTP response
+  const response = await requestPromise
+  t.assert.strictEqual(response.statusCode, 200)
+  t.assert.strictEqual(response.payload, '{"status": "updated"}')
 })

@@ -64,10 +64,49 @@ Add request/response mappings to your `platformatic.json`:
 
 | Option          | Description                                           | Default    |
 | --------------- | ----------------------------------------------------- | ---------- |
-| `path`          | HTTP endpoint path to expose                          | Required   |
+| `path`          | HTTP endpoint path to expose (supports path parameters) | Required   |
 | `requestTopic`  | Kafka topic to publish requests to                   | Required   |
 | `responseTopic` | Kafka topic to consume responses from                | Required   |
 | `timeout`       | Request timeout in milliseconds                      | `30000`    |
+
+### Path Parameters and Query Strings
+
+The request/response pattern supports both path parameters and query strings, which are automatically passed to Kafka consumers via headers.
+
+**Path Parameters:**
+```json
+{
+  "path": "/api/users/:userId/orders/:orderId"
+}
+```
+
+**Request with path parameters:**
+```bash
+curl -X POST http://localhost:3042/api/users/123/orders/456 \
+  -H "Content-Type: application/json" \
+  -d '{"action": "cancel"}'
+```
+
+**Kafka message headers include:**
+```json
+{
+  "x-plt-kafka-hooks-path-params": "{\"userId\":\"123\",\"orderId\":\"456\"}"
+}
+```
+
+**Query String Parameters:**
+```bash
+curl -X POST http://localhost:3042/api/search?q=coffee&limit=10&sort=price \
+  -H "Content-Type: application/json" \
+  -d '{"filters": {...}}'
+```
+
+**Kafka message headers include:**
+```json
+{
+  "x-plt-kafka-hooks-query-string": "{\"q\":\"coffee\",\"limit\":\"10\",\"sort\":\"price\"}"
+}
+```
 
 ### Usage Example
 
@@ -106,6 +145,17 @@ curl -X POST http://localhost:3042/topics/response-topic \
   "data": {...}
 }
 ```
+
+### Request Headers
+
+Request messages automatically include these headers when published to Kafka:
+
+| Header                               | Description                                    | When Added |
+| ------------------------------------ | ---------------------------------------------- | ---------- |
+| `x-plt-kafka-hooks-correlation-id`   | Unique correlation ID for request matching    | Always     |
+| `x-plt-kafka-hooks-path-params`      | JSON string of path parameters                | When path parameters present |
+| `x-plt-kafka-hooks-query-string`     | JSON string of query string parameters        | When query parameters present |
+| `content-type`                       | Content type of the request                   | Always     |
 
 ### Response Headers
 

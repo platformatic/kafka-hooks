@@ -374,10 +374,10 @@ test('should timeout request/response when no response is received', async t => 
   })
   const elapsed = Date.now() - start
 
-  t.assert.strictEqual(response.statusCode, 408)
+  t.assert.strictEqual(response.statusCode, 504)
   t.assert.ok(elapsed >= 1000)
   const json = response.json()
-  t.assert.strictEqual(json.code, 'HTTP_ERROR_REQUEST_TIMEOUT')
+  t.assert.strictEqual(json.code, 'HTTP_ERROR_GATEWAY_TIMEOUT')
 })
 
 test('should handle request/response pattern with path parameters', async t => {

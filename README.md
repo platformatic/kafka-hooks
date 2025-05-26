@@ -173,10 +173,10 @@ Response messages support these special headers:
 If no response is received within the configured timeout:
 ```json
 {
-  "code": "HTTP_ERROR_REQUEST_TIMEOUT",
-  "error": "Request Timeout",
+  "code": "HTTP_ERROR_GATEWAY_TIMEOUT",
+  "error": "Gateway Timeout",
   "message": "Request timeout",
-  "statusCode": 408
+  "statusCode": 504
 }
 ```
 

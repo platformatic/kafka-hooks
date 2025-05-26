@@ -1,4 +1,4 @@
-import { sleep, stringDeserializer, jsonDeserializer } from '@platformatic/kafka'
+import { sleep, stringDeserializer, jsonDeserializer, Consumer } from '@platformatic/kafka'
 import { buildServer } from '@platformatic/service'
 import { NOT_FOUND } from 'http-errors-enhanced'
 import { deepStrictEqual } from 'node:assert'
@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
-import { attemptHeader, defaultDlqTopic, keyHeader } from '../lib/definitions.js'
+import { attemptHeader, correlationIdHeader, defaultDlqTopic, keyHeader } from '../lib/definitions.js'
 import { stackable } from '../lib/index.js'
 import { createMonitor } from './fixtures/kafka-monitor.js'
 import { createTargetServer } from './fixtures/target-server.js'
@@ -281,4 +281,101 @@ test('should support binary data', async t => {
   deepStrictEqual(message.body, value)
   deepStrictEqual(message.headers[keyHeader], '')
   deepStrictEqual(message.headers[attemptHeader], '1')
+})
+
+test('should handle request/response pattern', async t => {
+  // Create a custom monitor for the request topic
+  const requestConsumer = new Consumer({
+    groupId: randomUUID(),
+    bootstrapBrokers: 'localhost:9092',
+    maxWaitTime: 500,
+    deserializers: {
+      value: stringDeserializer
+    }
+  })
+
+  await requestConsumer.metadata({ topics: ['plt-kafka-hooks-request'], autocreateTopics: true })
+  const requestStream = await requestConsumer.consume({ topics: ['plt-kafka-hooks-request'] })
+  t.after(() => requestConsumer.close(true))
+
+  const server = await startStackable(t, '', {
+    topics: [
+      {
+        topic: 'plt-kafka-hooks-response',
+        url: 'http://localhost:3043/response'
+      }
+    ],
+    requestResponse: [
+      {
+        path: '/api/process',
+        requestTopic: 'plt-kafka-hooks-request',
+        responseTopic: 'plt-kafka-hooks-response',
+        timeout: 5000
+      }
+    ]
+  })
+
+  // Simulate a request
+  const requestPromise = server.inject({
+    method: 'POST',
+    url: '/api/process',
+    payload: 'test request data',
+    headers: {
+      'content-type': 'text/plain'
+    }
+  })
+
+  // Wait for the request to be published to Kafka
+  const [requestMessage] = await once(requestStream, 'data')
+
+  // Convert headers map to object with string keys for easier access
+  const headers = {}
+  for (const [key, value] of requestMessage.headers) {
+    headers[key.toString()] = value.toString()
+  }
+
+  // Verify the request message has correlation ID
+  t.assert.ok(headers[correlationIdHeader])
+  t.assert.strictEqual(requestMessage.value, 'test request data')
+
+  // Simulate a response by sending to response topic via HTTP API
+  const correlationId = headers[correlationIdHeader]
+  await publishMessage(server, 'plt-kafka-hooks-response', 'response data', {
+    [correlationIdHeader]: correlationId,
+    'content-type': 'text/plain',
+    'x-status-code': '200'
+  })
+
+  // Wait for the HTTP response
+  const response = await requestPromise
+  t.assert.strictEqual(response.statusCode, 200)
+  t.assert.strictEqual(response.payload, 'response data')
+  t.assert.strictEqual(response.headers['content-type'], 'text/plain')
+})
+
+test('should timeout request/response when no response is received', async t => {
+  const server = await startStackable(t, '', {
+    topics: [],
+    requestResponse: [
+      {
+        path: '/api/timeout',
+        requestTopic: 'plt-kafka-hooks-request',
+        responseTopic: 'plt-kafka-hooks-response',
+        timeout: 1000
+      }
+    ]
+  })
+
+  const start = Date.now()
+  const response = await server.inject({
+    method: 'POST',
+    url: '/api/timeout',
+    payload: 'test request data'
+  })
+  const elapsed = Date.now() - start
+
+  t.assert.strictEqual(response.statusCode, 408)
+  t.assert.ok(elapsed >= 1000)
+  const json = response.json()
+  t.assert.strictEqual(json.code, 'HTTP_ERROR_REQUEST_TIMEOUT')
 })

@@ -94,6 +94,23 @@ test('should export stackable schema', async () => {
       serialization: {
         type: 'string',
         resolvePath: true
+      },
+      requestResponse: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            path: { type: 'string' },
+            requestTopic: { type: 'string' },
+            responseTopic: { type: 'string' },
+            timeout: {
+              type: 'integer',
+              minimum: 1000,
+              default: 30000
+            }
+          },
+          required: ['path', 'requestTopic', 'responseTopic']
+        }
       }
     },
     required: ['brokers', 'topics', 'consumer']

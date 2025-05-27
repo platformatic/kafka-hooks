@@ -1,7 +1,7 @@
 {
-  "$id": "https://schemas.platformatic.dev/@platformatic/kafka-hooks/0.1.0.json",
+  "$id": "https://schemas.platformatic.dev/@platformatic/kafka-hooks/0.3.0.json",
   "title": "Platformatic kafka-hooks configuration",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "type": "object",
   "properties": {
     "basePath": {
@@ -179,6 +179,46 @@
                       "type": "object"
                     }
                   },
+                  "additionalProperties": false
+                },
+                "formatters": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "resolvePath": true
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ],
+                  "additionalProperties": false
+                },
+                "timestamp": {
+                  "enum": [
+                    "epochTime",
+                    "unixTime",
+                    "nullTime",
+                    "isoTime"
+                  ]
+                },
+                "redact": {
+                  "type": "object",
+                  "properties": {
+                    "paths": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "censor": {
+                      "type": "string",
+                      "default": "[redacted]"
+                    }
+                  },
+                  "required": [
+                    "paths"
+                  ],
                   "additionalProperties": false
                 }
               },
@@ -1308,6 +1348,33 @@
         "serialization": {
           "type": "string",
           "resolvePath": true
+        },
+        "requestResponse": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "requestTopic": {
+                "type": "string"
+              },
+              "responseTopic": {
+                "type": "string"
+              },
+              "timeout": {
+                "type": "integer",
+                "minimum": 1000,
+                "default": 30000
+              }
+            },
+            "required": [
+              "path",
+              "requestTopic",
+              "responseTopic"
+            ]
+          }
         }
       },
       "required": [

@@ -64,6 +64,14 @@ export interface PlatformaticKafkaHooksConfiguration {
               [k: string]: unknown;
             };
           };
+          formatters?: {
+            path: string;
+          };
+          timestamp?: "epochTime" | "unixTime" | "nullTime" | "isoTime";
+          redact?: {
+            paths: string[];
+            censor?: string;
+          };
           [k: string]: unknown;
         };
     loggerInstance?: {
@@ -330,6 +338,13 @@ export interface PlatformaticKafkaHooksConfiguration {
     };
     concurrency?: number;
     serialization?: string;
+    requestResponse?: {
+      path: string;
+      requestTopic: string;
+      responseTopic: string;
+      timeout?: number;
+      [k: string]: unknown;
+    }[];
     [k: string]: unknown;
   };
 }

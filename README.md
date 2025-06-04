@@ -15,6 +15,8 @@ Wrap [Kafka](https://https://kafka.apache.org/) inside your application easily.
 
 ## Install with Watt
 
+Create a new Platformatic application with the Kafka hooks package using [Wattpm](https://platformatic.io/docs/wattpm):
+
 ```bash
 npx wattpm@latest create
 ```
@@ -25,6 +27,8 @@ And select `@platformatic/kafka-hooks` from the list of available packages.
 
 ```bash
 npx --package=@platformatic/kafka-hooks create-platformatic-kafka-hooks
+cd kafka-hooks-app
+npm install
 ```
 
 ## Configuration

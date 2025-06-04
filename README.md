@@ -12,28 +12,18 @@ Then you can:
 
 ## Features
 
-- Consume messages from Kafka topics and forward to HTTP endpoints.
-- Send messages to Kafka topics via HTTP API.
-- **Request/Response pattern over Kafka topics.**
-- Direct binary message passing.
-- Configurable retries and concurrency.
-- Dead Letter Queue (DLQ) for failed messages.
+- **Consume to HTTP**: Consume messages from Kafka topics and forward to HTTP endpoints
+- **HTTP to Produce**: Send messages to Kafka topics via HTTP API
+- **Request/Response pattern over Kafka topics**: Build HTTP-style request/response patterns routed through Kafka
+- **Direct binary message passing**: Pass message content directly without custom serialization
+- **Configurable retries and concurrency**: Handle failures with customizable retry logic and parallel processing
+- **Dead Letter Queue (DLQ)**: Failed messages are sent to DLQ topics for later inspection
+- **Path parameters and query strings**: Automatic handling of URL parameters via Kafka headers
+- **Error handling**: Comprehensive timeout and error management
 
-## Request/Response Pattern
+## Configuration
 
-The kafka-hooks library supports HTTP request/response patterns routed through Kafka topics. This enables building responsive microservices that communicate asynchronously via Kafka while maintaining HTTP-style request/response semantics.
-
-### How It Works
-
-1. **HTTP Request**: Client makes a POST request to a configured endpoint
-2. **Kafka Request**: The request is published to a Kafka request topic with a unique correlation ID
-3. **Service Processing**: External service consumes from the request topic, processes the message
-4. **Kafka Response**: Service publishes response to a response topic with the same correlation ID
-5. **HTTP Response**: The original HTTP request completes with the response data
-
-### Configuration
-
-Add request/response mappings to your `platformatic.json`:
+Configure your Kafka webhooks in the `platformatic.json` file:
 
 ```json
 {
@@ -41,8 +31,8 @@ Add request/response mappings to your `platformatic.json`:
     "brokers": ["localhost:9092"],
     "topics": [
       {
-        "topic": "response-topic",
-        "url": "http://localhost:3043/webhook"
+        "topic": "events",
+        "url": "https://service.example.com"
       }
     ],
     "requestResponse": [
@@ -54,13 +44,43 @@ Add request/response mappings to your `platformatic.json`:
       }
     ],
     "consumer": {
-      "groupId": "my-group"
-    }
+      "groupId": "plt-kafka-hooks",
+      "maxWaitTime": 500,
+      "sessionTimeout": 10000,
+      "rebalanceTimeout": 15000,
+      "heartbeatInterval": 500
+    },
+    "concurrency": 10
   }
 }
 ```
 
-### Request/Response Options
+### Core Options
+
+| Option          | Description                                                                                        | Default |
+| --------------- | -------------------------------------------------------------------------------------------------- | ------- |
+| `brokers`       | The list of Kafka brokers in the form `host:port`.                                                 | Required |
+| `consumer`      | Any option supported by a [@platformatic/kafka](https://github.com/platformatic/kafka) `Consumer`. | None    |
+| `concurrency`   | How many messages to process in parallel.                                                          | `10`    |
+
+### Topics Configuration
+
+Each item in the `topics` array supports the following options:
+
+| Option                     | Description                                                                                                | Default               |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------- |
+| `topic`                    | The topic to consume messages from.                                                                        | Required              |
+| `url`                      | The URL to send messages to.                                                                               | Required              |
+| `method`                   | The HTTP method to use when hitting the URL above.                                                         | `POST`                |
+| `headers`                  | Additional headers to send in the request.                                                                 | None                  |
+| `retries`                  | How many times to try the request before marking as failed.                                                | `3`                   |
+| `retryDelay`               | How much to wait between retries, in milliseconds.                                                         | `1000` (1 second)     |
+| `dlq`                      | The DLQ (Dead-Letter-Queue) topic to forward failed messages to. Set to `false` to disable.               | `plt-kafka-hooks-dlq` |
+| `includeAttemptInRequests` | If to include the current attempt number in the requests in the `x-plt-kafka-hooks-attempt` header.        | `true`                |
+
+### Request/Response Configuration
+
+Each item in the `requestResponse` array supports these options:
 
 | Option          | Description                                           | Default    |
 | --------------- | ----------------------------------------------------- | ---------- |
@@ -69,7 +89,90 @@ Add request/response mappings to your `platformatic.json`:
 | `responseTopic` | Kafka topic to consume responses from                | Required   |
 | `timeout`       | Request timeout in milliseconds                      | `30000`    |
 
-### Path Parameters and Query Strings
+### Dead Letter Queue (DLQ)
+
+When a message fails to be delivered after the configured number of retries, it's sent to a Dead Letter Queue (DLQ) topic for later inspection or processing.
+
+By default, failed messages are sent to the `plt-kafka-hooks-dlq` topic. You can:
+
+- Change the DLQ topic name by setting the `dlq` option in the topic configuration
+- Disable DLQ entirely by setting `dlq: false` in the topic configuration
+
+```json
+{
+  "kafka": {
+    "topics": [
+      {
+        "topic": "events",
+        "url": "https://service.example.com",
+        "dlq": "custom-dlq-topic"  // Custom DLQ topic name
+      },
+      {
+        "topic": "notifications",
+        "url": "https://service.example.com/notifications",
+        "dlq": false  // Disable DLQ for this topic
+      }
+    ]
+  }
+}
+```
+
+#### DLQ Message Format
+
+Messages sent to the DLQ contain detailed information about the failure:
+
+```json
+{
+  "key": "original-message-key",
+  "value": "base64-encoded-original-message",
+  "headers": {
+    "original-header-key": "original-header-value"
+  },
+  "topic": "original-topic",
+  "partition": 0,
+  "offset": "1234",
+  "errors": [
+    {
+      "statusCode": 500,
+      "error": "Internal Server Error",
+      "message": "Failed to process message"
+    }
+  ],
+  "retries": 3
+}
+```
+
+The original message value is preserved as a base64-encoded string to maintain its exact binary content.
+
+## APIs
+
+### HTTP to Kafka Publishing
+
+Publish messages to Kafka topics via HTTP POST requests:
+
+```bash
+curl --request POST \
+  --url http://127.0.0.1:3042/topics/topic \
+  --header 'Content-Type: application/json' \
+  --header 'x-plt-kafka-hooks-key: my-key' \
+  --data '{ "name": "my test" }'
+```
+
+If `x-plt-kafka-hooks-key` is omitted, then the message will have no key in Kafka.
+
+### Request/Response Pattern
+
+The kafka-hooks library supports HTTP request/response patterns routed through Kafka topics. This enables building responsive microservices that communicate asynchronously via Kafka while maintaining HTTP-style request/response semantics.
+
+#### How It Works
+
+1. **HTTP Request**: Client makes a POST request to a configured endpoint
+2. **Kafka Request**: The request is published to a Kafka request topic with a unique correlation ID
+3. **Service Processing**: External service consumes from the request topic, processes the message
+4. **Kafka Response**: Service publishes response to a response topic with the same correlation ID
+5. **HTTP Response**: The original HTTP request completes with the response data
+
+#### Path Parameters and Query Strings
 
 The request/response pattern supports both path parameters and query strings, which are automatically passed to Kafka consumers via headers.
 
@@ -108,7 +211,7 @@ curl -X POST http://localhost:3042/api/search?q=coffee&limit=10&sort=price \
 }
 ```
 
-### Usage Example
+#### Usage Example
 
 **Make a request:**
 ```bash
@@ -146,7 +249,7 @@ curl -X POST http://localhost:3042/topics/response-topic \
 }
 ```
 
-### Request Headers
+#### Request Headers
 
 Request messages automatically include these headers when published to Kafka:
 
@@ -157,7 +260,7 @@ Request messages automatically include these headers when published to Kafka:
 | `x-plt-kafka-hooks-query-string`     | JSON string of query string parameters        | When query parameters present |
 | `content-type`                       | Content type of the request                   | Always     |
 
-### Response Headers
+#### Response Headers
 
 Response messages support these special headers:
 
@@ -167,7 +270,7 @@ Response messages support these special headers:
 | `x-status-code`                      | HTTP status code for the response             | `200`   |
 | `content-type`                       | Content type of the response                  | Preserved |
 
-### Error Handling
+#### Error Handling
 
 **Timeout Response:**
 If no response is received within the configured timeout:
@@ -186,7 +289,7 @@ Responses without correlation IDs are logged as warnings and ignored.
 **No Pending Request:**
 Responses for non-existent correlation IDs are logged as warnings and ignored.
 
-### Use Cases
+#### Use Cases
 
 - **Microservice Communication**: Route requests through Kafka for reliable delivery
 - **Async Processing**: Handle long-running tasks with HTTP-like interface
@@ -206,25 +309,11 @@ npx platformatic start
 
 You can then edit your `.env` file and configure the `PLT_KAFKA_BROKER` env variable to select your Kafka broker.
 
-## API Tutorial
-
-To publish a message to Kafka:
-
-```
-curl --request POST \
-  --url http://127.0.0.1:3042/topics/topic \
-  --header 'Content-Type: application/json' \
-  --header 'x-plt-kafka-hooks-key: my-key' \
-  --data '{ "name": "my test" }'
-```
-
-If `x-plt-kafka-hooks-key` is omitted, then the message will have no key in Kafka.
-
 ### Requirements
 
-You'll need a Kafka server running. If you don't have one, you can this `docker-compose.yml` file as a starter:
+You'll need a Kafka server running. If you don't have one, you can use this `docker-compose.yml` file as a starter:
 
-```
+```yaml
 ---
 services:
   kafka:
@@ -250,119 +339,6 @@ services:
       KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
 ```
-
-## Configuration
-
-Configure your Kafka webhooks in the `platformatic.json` file:
-
-```json
-{
-  "kafka": {
-    "brokers": ["localhost:9092"],
-    "topics": [
-      {
-        "topic": "events",
-        "url": "https://service.example.com"
-      }
-    ],
-    "consumer": {
-      "groupId": "plt-kafka-hooks",
-      "maxWaitTime": 500,
-      "sessionTimeout": 10000,
-      "rebalanceTimeout": 15000,
-      "heartbeatInterval": 500
-    }
-  }
-}
-```
-
-### Topics configuration
-
-Each item in the `topics` array supports the following options:
-
-| Option                     | Description                                                                                                | Default               |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------- |
-| `topic`                    | The topic to consume messages from.                                                                        |                       |
-| `dlq`                      | The DLQ (Dead-Letter-Queue) topic to forward failed messages to. It can be disabled by setting to `false`. | `plt-kafka-hooks-dlq` |
-| `url`                      | The URL to send messages to.                                                                               |                       |
-| `method`                   | The method to use when hitting the URL above.                                                              | `POST`                |
-| `headers`                  | Additional headers to send in the request.                                                                 |                       |
-| `retries`                  | How many times to try the request before marking as failed.                                                | `3`                   |
-| `retryDelay`               | How much to wait between retries, in milliseconds.                                                         | `1000` (1 second)     |
-| `includeAttemptInRequests` | If to include the current attempt number in the requests in the `x-plt-kafka-hooks-attempt` header.        | `true`                |
-
-### Additional configurations
-
-| Option          | Description                                                                                        | Default |
-| --------------- | -------------------------------------------------------------------------------------------------- | ------- |
-| `brokers`       | The list of Kafka brokers in the form `host:port`.                                                 | None    |
-| `consumer`      | Any option supported by a [@platformatic/kafka](https://github.com/platformatic/kafka) `Consumer`. | None    |
-| `concurrency`   | How many messages to process in parallel.                                                          | `10`    |
-
-## Dead Letter Queue (DLQ)
-
-When a message fails to be delivered after the configured number of retries, it's sent to a Dead Letter Queue (DLQ) topic for later inspection or processing.
-
-### DLQ Configuration
-
-By default, failed messages are sent to the `plt-kafka-hooks-dlq` topic. You can:
-
-- Change the DLQ topic name by setting the `dlq` option in the topic configuration
-- Disable DLQ entirely by setting `dlq: false` in the topic configuration
-
-```json
-{
-  "kafka": {
-    "topics": [
-      {
-        "topic": "events",
-        "url": "https://service.example.com",
-        "dlq": "custom-dlq-topic"  // Custom DLQ topic name
-      },
-      {
-        "topic": "notifications",
-        "url": "https://service.example.com/notifications",
-        "dlq": false  // Disable DLQ for this topic
-      }
-    ]
-  }
-}
-```
-
-### DLQ Message Format
-
-Messages sent to the DLQ contain detailed information about the failure:
-
-```json
-{
-  "key": "original-message-key",
-  "value": "base64-encoded-original-message",
-  "headers": {
-    "original-header-key": "original-header-value"
-  },
-  "topic": "original-topic",
-  "partition": 0,
-  "offset": "1234",
-  "errors": [
-    {
-      "statusCode": 500,
-      "error": "Internal Server Error",
-      "message": "Failed to process message"
-    }
-  ],
-  "retries": 3
-}
-```
-
-The original message value is preserved as a base64-encoded string to maintain its exact binary content.
-
-### Processing DLQ Messages
-
-DLQ messages can be consumed and processed using standard Kafka consumer tools. When reprocessing, you may want to:
-
-1. Decode the base64-encoded value
-2. Examine the errors to understand why processing failed
-3. Fix any issues and re-submit the message to the original topic
 
 ## License
 

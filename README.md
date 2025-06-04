@@ -2,14 +2,6 @@
 
 Wrap [Kafka](https://https://kafka.apache.org/) inside your application easily.
 
-This assumes that you have a Kafka cluster server running.
-
-Then you can:
-
-- Export the messages published on one or more topics to a HTTP endpoint.
-- Publish messages to a topic from a HTTP endpoint with a POST to the `/topics/:topic` endpoint.
-- Build request/response patterns over Kafka topics with HTTP-style semantics.
-
 ## Features
 
 - **Consume to HTTP**: Consume messages from Kafka topics and forward to HTTP endpoints
@@ -20,6 +12,20 @@ Then you can:
 - **Dead Letter Queue (DLQ)**: Failed messages are sent to DLQ topics for later inspection
 - **Path parameters and query strings**: Automatic handling of URL parameters via Kafka headers
 - **Error handling**: Comprehensive timeout and error management
+
+## Install with Watt
+
+```bash
+npx wattpm@latest create
+```
+
+And select `@platformatic/kafka-hooks` from the list of available packages.
+
+## Install Standalone
+
+```bash
+npx --package=@platformatic/kafka-hooks create-platformatic-kafka-hooks
+```
 
 ## Configuration
 

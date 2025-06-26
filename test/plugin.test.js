@@ -11,7 +11,7 @@ import { stackable } from '../lib/index.js'
 import { createMonitor } from './fixtures/kafka-monitor.js'
 import { createTargetServer } from './fixtures/target-server.js'
 
-async function startStackable(t, url = 'http://localhost:3043', opts = {}) {
+async function startStackable (t, url = 'http://localhost:3043', opts = {}) {
   const config = {
     $schema: '../../schema.json',
     module: '../../lib/index.js',
@@ -65,7 +65,7 @@ async function startStackable(t, url = 'http://localhost:3043', opts = {}) {
   return server
 }
 
-async function startTargetServer(t) {
+async function startTargetServer (t) {
   const { server, events } = await createTargetServer()
   t.after(() => server.close())
   await server.listen({ port: 0 })
@@ -74,7 +74,7 @@ async function startTargetServer(t) {
   return { server, events, url }
 }
 
-async function publishMessage(server, topic, message, headers = {}) {
+async function publishMessage (server, topic, message, headers = {}) {
   if (!headers['content-type']) {
     if (typeof message === 'object') {
       headers['content-type'] = 'application/json'

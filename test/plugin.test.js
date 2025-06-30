@@ -682,9 +682,6 @@ test('should handle no pending request found for correlation ID', async t => {
     'x-status-code': '200'
   })
 
-  // Wait for message processing
-  await sleep(1000)
-
   // Verify the system still works normally by doing a proper request/response cycle
   const requestConsumer = new Consumer({
     groupId: randomUUID(),

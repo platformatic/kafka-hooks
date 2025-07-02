@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import { strictEqual, ok } from 'node:assert'
 import { processMessage } from '../lib/plugin.js'
 import { defaultDlqTopic } from '../lib/definitions.js'
+import { MockAgent, setGlobalDispatcher, Agent } from 'undici'
 
 function createMockMetrics () {
   const counters = {}
@@ -106,6 +107,116 @@ function createMockLogger () {
     }
   }
 }
+
+test('processMessage should send to DLQ with http status code reason when request returns error status', async t => {
+  const metrics = createMockMetrics()
+  const logger = createMockLogger()
+  const dlqProducer = await createDlqProducer()
+  t.after(() => dlqProducer.close())
+
+  const { stream } = await createDlqConsumer(t)
+
+  const mockAgent = new MockAgent()
+  mockAgent.disableNetConnect()
+  setGlobalDispatcher(mockAgent)
+
+  t.after(async () => {
+    await mockAgent.close()
+    setGlobalDispatcher(new Agent())
+  })
+
+  const mockPool = mockAgent.get('http://127.0.0.1:8080')
+  mockPool
+    .intercept({
+      path: '/error',
+      method: 'POST'
+    })
+    .reply(500, { error: 'Internal Server Error' }, {
+      'content-type': 'application/json'
+    })
+
+  const mappings = {
+    'test-topic': {
+      url: 'http://127.0.0.1:8080/error',
+      dlq: defaultDlqTopic,
+      method: 'POST',
+      retryDelay: 100,
+      headers: {},
+      retries: 2,
+      includeAttemptInRequests: true
+    }
+  }
+
+  const message = createMockMessage('test-topic', 'test-value', 'test-key')
+
+  await processMessage(logger, dlqProducer, mappings, message, metrics)
+
+  const [dlqMessage] = await once(stream, 'data')
+
+  strictEqual(metrics.messagesProcessed.getCount('test-topic', 'failed'), 1)
+  strictEqual(metrics.messagesInFlight.getValue('test-topic'), 0)
+
+  strictEqual(metrics.dlqMessages.getCount('test-topic', 'http_500'), 1)
+  strictEqual(metrics.dlqMessages.getCount('test-topic', 'network_error'), 0)
+
+  strictEqual(dlqMessage.topic, defaultDlqTopic)
+  strictEqual(dlqMessage.value.retries, 2)
+  strictEqual(dlqMessage.value.errors.length, 2)
+  strictEqual(Buffer.from(dlqMessage.value.value, 'base64').toString(), 'test-value')
+
+  mockAgent.assertNoPendingInterceptors()
+})
+
+test('processMessage should update success metrics when request succeeds', async t => {
+  const metrics = createMockMetrics()
+  const logger = createMockLogger()
+  const dlqProducer = await createDlqProducer()
+  t.after(() => dlqProducer.close())
+
+  const mockAgent = new MockAgent()
+  mockAgent.disableNetConnect()
+  setGlobalDispatcher(mockAgent)
+
+  t.after(async () => {
+    await mockAgent.close()
+    setGlobalDispatcher(new Agent())
+  })
+
+  const mockPool = mockAgent.get('http://127.0.0.1:8080')
+  mockPool
+    .intercept({
+      path: '/success',
+      method: 'POST'
+    })
+    .reply(200, { success: true })
+
+  const mappings = {
+    'test-topic': {
+      url: 'http://127.0.0.1:8080/success',
+      dlq: defaultDlqTopic,
+      method: 'POST',
+      retryDelay: 100,
+      headers: {},
+      retries: 2,
+      includeAttemptInRequests: true
+    }
+  }
+
+  const message = createMockMessage('test-topic', 'test-value', 'test-key')
+
+  strictEqual(metrics.messagesInFlight.getValue('test-topic'), 0)
+  strictEqual(metrics.messagesProcessed.getCount('test-topic', 'success'), 0)
+
+  await processMessage(logger, dlqProducer, mappings, message, metrics)
+
+  strictEqual(metrics.messagesProcessed.getCount('test-topic', 'success'), 1)
+  strictEqual(metrics.messagesInFlight.getValue('test-topic'), 0) // Should be decremented back to 0
+
+  strictEqual(metrics.messagesProcessed.getCount('test-topic', 'failed'), 0)
+  strictEqual(metrics.dlqMessages.getCount('test-topic', 'network_error'), 0)
+
+  mockAgent.assertNoPendingInterceptors()
+})
 
 test('processMessage should handle failed requests and update metrics', async t => {
   const metrics = createMockMetrics()

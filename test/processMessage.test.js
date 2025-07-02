@@ -13,13 +13,6 @@ function createMockMetrics () {
   const histograms = {}
 
   return {
-    messagesProcessed: {
-      inc: ({ topic, status }) => {
-        const key = `${topic}-${status}`
-        counters[key] = (counters[key] || 0) + 1
-      },
-      getCount: (topic, status) => counters[`${topic}-${status}`] || 0
-    },
     messagesInFlight: {
       inc: ({ topic }) => {
         gauges[topic] = (gauges[topic] || 0) + 1
@@ -153,7 +146,6 @@ test('processMessage should send to DLQ with http status code reason when reques
 
   const [dlqMessage] = await once(stream, 'data')
 
-  strictEqual(metrics.messagesProcessed.getCount('test-topic', 'failed'), 1)
   strictEqual(metrics.messagesInFlight.getValue('test-topic'), 0)
 
   strictEqual(metrics.dlqMessages.getCount('test-topic', 'http_500'), 1)
@@ -205,14 +197,10 @@ test('processMessage should update success metrics when request succeeds', async
   const message = createMockMessage('test-topic', 'test-value', 'test-key')
 
   strictEqual(metrics.messagesInFlight.getValue('test-topic'), 0)
-  strictEqual(metrics.messagesProcessed.getCount('test-topic', 'success'), 0)
-
   await processMessage(logger, dlqProducer, mappings, message, metrics)
 
-  strictEqual(metrics.messagesProcessed.getCount('test-topic', 'success'), 1)
   strictEqual(metrics.messagesInFlight.getValue('test-topic'), 0) // Should be decremented back to 0
 
-  strictEqual(metrics.messagesProcessed.getCount('test-topic', 'failed'), 0)
   strictEqual(metrics.dlqMessages.getCount('test-topic', 'network_error'), 0)
 
   mockAgent.assertNoPendingInterceptors()
@@ -244,7 +232,6 @@ test('processMessage should handle failed requests and update metrics', async t 
 
   const [dlqMessage] = await once(stream, 'data')
 
-  strictEqual(metrics.messagesProcessed.getCount('test-topic', 'failed'), 1)
   strictEqual(metrics.messagesInFlight.getValue('test-topic'), 0)
   strictEqual(metrics.dlqMessages.getCount('test-topic', 'network_error'), 1)
 
@@ -283,7 +270,6 @@ test('processMessage should not send to DLQ when dlq is false', async t => {
 
   await processMessage(logger, dlqProducer, mappings, message, metrics)
 
-  strictEqual(metrics.messagesProcessed.getCount('test-topic', 'failed'), 1)
   strictEqual(metrics.dlqMessages.getCount('test-topic', 'network_error'), 0)
   strictEqual(dlqMessageReceived, false)
 

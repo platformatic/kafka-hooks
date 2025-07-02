@@ -31,21 +31,9 @@ test('initMetrics should return metrics object when prometheus is properly confi
   const metrics = initMetrics(prometheus)
 
   ok(metrics, 'Metrics object should be created')
-  ok(metrics.messagesProcessed, 'messagesProcessed metric should exist')
   ok(metrics.messagesInFlight, 'messagesInFlight metric should exist')
   ok(metrics.httpRequestDuration, 'httpRequestDuration metric should exist')
   ok(metrics.dlqMessages, 'dlqMessages metric should exist')
-})
-
-test('messagesProcessed should be configured as Counter with correct properties', async () => {
-  const registry = new promClient.Registry()
-  const prometheus = { registry, client: promClient }
-  const metrics = initMetrics(prometheus)
-
-  const counter = metrics.messagesProcessed
-  strictEqual(counter.name, 'kafka_hooks_messages_processed_total')
-  strictEqual(counter.help, 'Total number of messages successfully processed')
-  deepStrictEqual(counter.labelNames, ['topic', 'status'])
 })
 
 test('messagesInFlight should be configured as Gauge with correct properties', async () => {
@@ -86,24 +74,6 @@ test('metrics should be functional - Counter operations', async () => {
   const registry = new promClient.Registry()
   const prometheus = { registry, client: promClient }
   const metrics = initMetrics(prometheus)
-
-  metrics.messagesProcessed.inc({ topic: 'test-topic', status: 'success' })
-  metrics.messagesProcessed.inc({ topic: 'test-topic', status: 'success' }, 2)
-  metrics.messagesProcessed.inc({ topic: 'test-topic', status: 'failed' })
-
-  // Get metric values from registry
-  const registryMetrics = await registry.getMetricsAsJSON()
-  const messagesProcessedMetric = registryMetrics.find(m => m.name === 'kafka_hooks_messages_processed_total')
-
-  const successValue = messagesProcessedMetric.values.find(v =>
-    v.labels.topic === 'test-topic' && v.labels.status === 'success'
-  ).value
-  const failedValue = messagesProcessedMetric.values.find(v =>
-    v.labels.topic === 'test-topic' && v.labels.status === 'failed'
-  ).value
-
-  strictEqual(successValue, 3)
-  strictEqual(failedValue, 1)
 
   metrics.dlqMessages.inc({ topic: 'test-topic', reason: 'http_500' })
   metrics.dlqMessages.inc({ topic: 'test-topic', reason: 'network_error' }, 3)
@@ -178,38 +148,4 @@ test('metrics should be functional - Histogram operations', async () => {
 
   strictEqual(countValue, 2) // Two observations for 200 status code
   strictEqual(sumValue, 1.7) // 0.5 + 1.2 = 1.7
-})
-
-test('metrics should handle different label combinations', async () => {
-  const registry = new promClient.Registry()
-  const prometheus = { registry, client: promClient }
-  const metrics = initMetrics(prometheus)
-
-  metrics.messagesProcessed.inc({ topic: 'topic-1', status: 'success' })
-  metrics.messagesProcessed.inc({ topic: 'topic-2', status: 'success' })
-  metrics.messagesProcessed.inc({ topic: 'topic-1', status: 'failed' })
-
-  const registryMetrics = await registry.getMetricsAsJSON()
-  const messagesProcessedMetric = registryMetrics.find(m => m.name === 'kafka_hooks_messages_processed_total')
-
-  const topic1Success = messagesProcessedMetric.values.find(v =>
-    v.labels.topic === 'topic-1' && v.labels.status === 'success'
-  )?.value || 0
-
-  const topic2Success = messagesProcessedMetric.values.find(v =>
-    v.labels.topic === 'topic-2' && v.labels.status === 'success'
-  )?.value || 0
-
-  const topic1Failed = messagesProcessedMetric.values.find(v =>
-    v.labels.topic === 'topic-1' && v.labels.status === 'failed'
-  )?.value || 0
-
-  const topic2Failed = messagesProcessedMetric.values.find(v =>
-    v.labels.topic === 'topic-2' && v.labels.status === 'failed'
-  )?.value || 0
-
-  strictEqual(topic1Success, 1)
-  strictEqual(topic2Success, 1)
-  strictEqual(topic1Failed, 1)
-  strictEqual(topic2Failed, 0)
 })

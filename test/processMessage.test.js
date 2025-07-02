@@ -1,4 +1,4 @@
-import { sleep, stringDeserializer, jsonDeserializer, Consumer, Producer, stringSerializer, jsonSerializer } from '@platformatic/kafka'
+import { stringDeserializer, jsonDeserializer, Consumer, Producer, stringSerializer, jsonSerializer } from '@platformatic/kafka'
 import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { test } from 'node:test'
@@ -6,7 +6,6 @@ import { strictEqual, ok } from 'node:assert'
 import { processMessage } from '../lib/plugin.js'
 import { defaultDlqTopic } from '../lib/definitions.js'
 
-// Mock metrics implementation
 function createMockMetrics () {
   const counters = {}
   const gauges = {}
@@ -132,15 +131,12 @@ test('processMessage should handle failed requests and update metrics', async t 
 
   await processMessage(logger, dlqProducer, mappings, message, metrics)
 
-  // Wait for DLQ message
   const [dlqMessage] = await once(stream, 'data')
 
-  // Verify failure metrics
   strictEqual(metrics.messagesProcessed.getCount('test-topic', 'failed'), 1)
   strictEqual(metrics.messagesInFlight.getValue('test-topic'), 0)
   strictEqual(metrics.dlqMessages.getCount('test-topic', 'network_error'), 1)
 
-  // Verify DLQ message content
   strictEqual(dlqMessage.topic, defaultDlqTopic)
   strictEqual(dlqMessage.value.retries, 2)
   strictEqual(dlqMessage.value.errors.length, 2)
@@ -175,14 +171,11 @@ test('processMessage should not send to DLQ when dlq is false', async t => {
   })
 
   await processMessage(logger, dlqProducer, mappings, message, metrics)
-  await sleep(1000) // Wait to ensure no DLQ message is sent
 
-  // Verify failure metrics but no DLQ metrics
   strictEqual(metrics.messagesProcessed.getCount('test-topic', 'failed'), 1)
   strictEqual(metrics.dlqMessages.getCount('test-topic', 'network_error'), 0)
   strictEqual(dlqMessageReceived, false)
 
-  // Verify error was logged instead
   const logs = logger.getLogs()
   ok(logs.some(log => log.level === 'error' && log.obj.dlqMessage))
 })

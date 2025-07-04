@@ -18,7 +18,9 @@ export async function createMonitor (valueDeserializer = safeJsonDeserializer) {
     maxWaitTime: 500,
     deserializers: {
       value: valueDeserializer
-    }
+    },
+    /* c8 ignore next */
+    metrics: globalThis.platformatic?.prometheus
   })
 
   const topics = ['plt-kafka-hooks-success', 'plt-kafka-hooks-fail', 'plt-kafka-hooks-retry', defaultDlqTopic]

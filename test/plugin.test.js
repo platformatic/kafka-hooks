@@ -1,4 +1,5 @@
 import { sleep, stringDeserializer, jsonDeserializer, Consumer } from '@platformatic/kafka'
+import promClient from 'prom-client'
 import { buildServer } from '@platformatic/service'
 import { NOT_FOUND } from 'http-errors-enhanced'
 import { deepStrictEqual } from 'node:assert'
@@ -726,4 +727,106 @@ test('should handle no pending request found for correlation ID', async t => {
   const response = await requestPromise
   t.assert.strictEqual(response.statusCode, 200)
   t.assert.strictEqual(response.payload, 'legitimate response')
+})
+
+test('should increment DLQ metrics with network_error reason when network error occurs', async t => {
+  const registry = new promClient.Registry()
+
+  const originalPrometheus = globalThis.platformatic?.prometheus
+  globalThis.platformatic = {
+    prometheus: { registry, client: promClient }
+  }
+
+  const server = await startStackable(t, '', {
+    topics: [
+      {
+        topic: 'plt-kafka-hooks-network-error',
+        url: 'http://127.0.0.1:1/fail', // Invalid URL that will cause network error
+        dlq: true,
+        retries: 1,
+        retryDelay: 100
+      }
+    ]
+  })
+
+  // Get the DLQ counter metric before sending the message
+  const dlqMetric = registry.getSingleMetric('kafka_hooks_dlq_messages_total')
+  await publishMessage(server, 'plt-kafka-hooks-network-error', 'test message')
+  await sleep(1500)
+
+  // Get the metric value after processing
+  const finalValue = await dlqMetric.get()
+
+  // Find the specific metric for our topic and reason
+  const networkErrorMetric = finalValue.values.find(v =>
+    v.labels.topic === 'plt-kafka-hooks-network-error' &&
+    v.labels.reason === 'network_error'
+  )
+
+  t.assert.ok(networkErrorMetric, 'DLQ metric with network_error reason should exist')
+  t.assert.strictEqual(networkErrorMetric.value, 1, 'DLQ metric should be incremented by 1')
+
+  // Restore original prometheus
+  if (originalPrometheus) {
+    globalThis.platformatic.prometheus = originalPrometheus
+  } else {
+    delete globalThis.platformatic
+  }
+})
+
+test('should increment DLQ metrics with http status code reason when HTTP error occurs', async t => {
+  const { url: targetUrl } = await startTargetServer(t)
+
+  // Create a real Prometheus registry
+  const registry = new promClient.Registry()
+
+  // Set up global prometheus
+  const originalPrometheus = globalThis.platformatic?.prometheus
+  globalThis.platformatic = {
+    prometheus: {
+      registry,
+      client: promClient
+    }
+  }
+
+  const server = await startStackable(t, '', {
+    topics: [
+      {
+        topic: 'plt-kafka-hooks-http-error',
+        url: `${targetUrl}/fail`, // Use the existing /fail endpoint
+        dlq: true,
+        retries: 1,
+        retryDelay: 100
+      }
+    ]
+  })
+
+  await publishMessage(server, 'plt-kafka-hooks-http-error', 'test message')
+
+  // Wait for processing to complete
+  await sleep(1500)
+
+  // Get the DLQ counter metric
+  const dlqMetric = registry.getSingleMetric('kafka_hooks_dlq_messages_total')
+  const metricValue = await dlqMetric.get()
+
+  // Find the specific metric for our topic - we need to check what status code /fail returns
+  // Looking at existing tests, it might return 500 or another status code
+  const httpErrorMetric = metricValue.values.find(v =>
+    v.labels.topic === 'plt-kafka-hooks-http-error' &&
+    v.labels.reason.startsWith('http_')
+  )
+
+  t.assert.ok(httpErrorMetric, 'DLQ metric with http status code reason should exist')
+  t.assert.strictEqual(httpErrorMetric.value, 1, 'DLQ metric should be incremented by 1')
+
+  // Log the actual reason for debugging
+  t.diagnostic(`DLQ reason: ${httpErrorMetric.labels.reason}`)
+
+  // Restore original prometheus
+  if (originalPrometheus) {
+    globalThis.platformatic.prometheus = originalPrometheus
+  } else {
+    delete globalThis.platformatic
+  }
 })

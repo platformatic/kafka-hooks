@@ -121,21 +121,18 @@ function waitForMetricUpdate (registry, metricName, labelMatcher) {
     return false
   }
 
-  checkMetric().then(resolved => {
-    if (resolved) return
-    let retry = 0
-    const intervalId = setInterval(async () => {
-      const resolved = await checkMetric()
-      if (resolved) {
-        clearInterval(intervalId)
-      }
-      if (retry > 10) {
-        clearInterval(intervalId)
-        throw new Error(`checkMetric retried ${retry} times`)
-      }
-      retry++
-    }, 200)
-  })
+  let retry = 0
+  const intervalId = setInterval(async () => {
+    const resolved = await checkMetric()
+    if (resolved) {
+      clearInterval(intervalId)
+    }
+    if (retry > 5) {
+      clearInterval(intervalId)
+      throw new Error(`checkMetric retried ${retry} times`)
+    }
+    retry++
+  }, 100)
 
   return promise
 }
@@ -794,17 +791,14 @@ test('should increment DLQ metrics with network_error reason when network error 
     ]
   })
 
-  // Set up the promise to wait for the metric update
-  const metricPromise = waitForMetricUpdate(
+  await publishMessage(server, 'plt-kafka-hooks-network-error', 'test message')
+
+  // Wait for the metric to be updated
+  const matchingMetric = await waitForMetricUpdate(
     registry,
     'kafka_hooks_dlq_messages_total',
     (labels) => labels.topic === 'plt-kafka-hooks-network-error' && labels.reason === 'network_error'
   )
-
-  await publishMessage(server, 'plt-kafka-hooks-network-error', 'test message')
-
-  // Wait for the metric to be updated
-  const matchingMetric = await metricPromise
 
   t.assert.ok(matchingMetric, 'DLQ metric with network_error reason should exist')
   t.assert.strictEqual(matchingMetric.value, 1, 'DLQ metric should be incremented by 1')
@@ -844,17 +838,14 @@ test('should increment DLQ metrics with http status code reason when HTTP error 
     ]
   })
 
-  // Set up the promise to wait for the metric update
-  const metricPromise = waitForMetricUpdate(
+  await publishMessage(server, 'plt-kafka-hooks-http-error', 'test message')
+
+  // Wait for the metric to be updated
+  const matchingMetric = await waitForMetricUpdate(
     registry,
     'kafka_hooks_dlq_messages_total',
     (labels) => labels.topic === 'plt-kafka-hooks-http-error' && labels.reason.startsWith('http_')
   )
-
-  await publishMessage(server, 'plt-kafka-hooks-http-error', 'test message')
-
-  // Wait for the metric to be updated
-  const matchingMetric = await metricPromise
 
   t.assert.ok(matchingMetric, 'DLQ metric with http status code reason should exist')
   t.assert.strictEqual(matchingMetric.value, 1, 'DLQ metric should be incremented by 1')

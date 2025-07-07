@@ -1,4 +1,4 @@
-import { sleep, stringDeserializer, jsonDeserializer, Consumer } from '@platformatic/kafka'
+import { stringDeserializer, jsonDeserializer, Consumer } from '@platformatic/kafka'
 import promClient from 'prom-client'
 import { buildServer } from '@platformatic/service'
 import { NOT_FOUND } from 'http-errors-enhanced'
@@ -102,6 +102,22 @@ async function publishMessage (server, topic, message, headers = {}) {
   }
 
   return res
+}
+
+async function waitForMetricUpdate (registry, metricName, labelMatcher) {
+  const { promise, resolve } = Promise.withResolvers()
+
+  const metric = registry.getSingleMetric(metricName)
+  if (!metric) return false
+
+  const metricValue = await metric.get()
+  const matchingMetric = metricValue.values.find(v => labelMatcher(v.labels))
+
+  if (matchingMetric && matchingMetric.value >= 1) {
+    resolve(matchingMetric)
+  }
+
+  return promise
 }
 
 test('should produce messages to Kafka and then forward them to the target server', async t => {
@@ -249,15 +265,24 @@ test('should not publish a permanently failed message to the DLQ if asked to', a
   })
   const value = randomUUID()
 
+  const { promise: processingPromise, resolve: resolveProcessing } = Promise.withResolvers()
   let dlqMessages = 0
+
   stream.on('data', message => {
     if (message.topic === defaultDlqTopic) {
       dlqMessages++
     }
+    // Mark processing as complete when we receive the original message
+    if (message.topic === 'plt-kafka-hooks-fail') {
+      resolveProcessing()
+    }
   })
 
   await publishMessage(server, 'plt-kafka-hooks-fail', value)
-  await sleep(3000)
+
+  // Wait for the message to be processed and retries to complete
+  await processingPromise
+
   deepStrictEqual(dlqMessages, 0)
 })
 
@@ -730,6 +755,9 @@ test('should handle no pending request found for correlation ID', async t => {
 })
 
 test('should increment DLQ metrics with network_error reason when network error occurs', async t => {
+  const { consumer, stream } = await createMonitor(stringDeserializer)
+  t.after(() => consumer.close(true))
+
   const registry = new promClient.Registry()
 
   const originalPrometheus = globalThis.platformatic?.prometheus
@@ -749,22 +777,25 @@ test('should increment DLQ metrics with network_error reason when network error 
     ]
   })
 
-  // Get the DLQ counter metric before sending the message
-  const dlqMetric = registry.getSingleMetric('kafka_hooks_dlq_messages_total')
+  const { promise: processingPromise, resolve: resolveProcessing } = Promise.withResolvers()
+
+  stream.on('data', message => {
+    if (message.topic === 'plt-kafka-hooks-dlq') {
+      resolveProcessing()
+    }
+  })
   await publishMessage(server, 'plt-kafka-hooks-network-error', 'test message')
-  await sleep(1500)
+  await processingPromise
 
-  // Get the metric value after processing
-  const finalValue = await dlqMetric.get()
-
-  // Find the specific metric for our topic and reason
-  const networkErrorMetric = finalValue.values.find(v =>
-    v.labels.topic === 'plt-kafka-hooks-network-error' &&
-    v.labels.reason === 'network_error'
+  // Wait for the metric to be updated
+  const matchingMetric = await waitForMetricUpdate(
+    registry,
+    'kafka_hooks_dlq_messages_total',
+    (labels) => labels.topic === 'plt-kafka-hooks-network-error' && labels.reason === 'network_error'
   )
 
-  t.assert.ok(networkErrorMetric, 'DLQ metric with network_error reason should exist')
-  t.assert.strictEqual(networkErrorMetric.value, 1, 'DLQ metric should be incremented by 1')
+  t.assert.ok(matchingMetric, 'DLQ metric with network_error reason should exist')
+  t.assert.strictEqual(matchingMetric.value, 1, 'DLQ metric should be incremented by 1')
 
   // Restore original prometheus
   if (originalPrometheus) {
@@ -775,6 +806,8 @@ test('should increment DLQ metrics with network_error reason when network error 
 })
 
 test('should increment DLQ metrics with http status code reason when HTTP error occurs', async t => {
+  const { consumer, stream } = await createMonitor(stringDeserializer)
+  t.after(() => consumer.close(true))
   const { url: targetUrl } = await startTargetServer(t)
 
   // Create a real Prometheus registry
@@ -801,27 +834,29 @@ test('should increment DLQ metrics with http status code reason when HTTP error 
     ]
   })
 
+  const { promise: processingPromise, resolve: resolveProcessing } = Promise.withResolvers()
+
+  stream.on('data', message => {
+    if (message.topic === 'plt-kafka-hooks-dlq') {
+      resolveProcessing()
+    }
+  })
+
   await publishMessage(server, 'plt-kafka-hooks-http-error', 'test message')
+  await processingPromise
 
-  // Wait for processing to complete
-  await sleep(1500)
-
-  // Get the DLQ counter metric
-  const dlqMetric = registry.getSingleMetric('kafka_hooks_dlq_messages_total')
-  const metricValue = await dlqMetric.get()
-
-  // Find the specific metric for our topic - we need to check what status code /fail returns
-  // Looking at existing tests, it might return 500 or another status code
-  const httpErrorMetric = metricValue.values.find(v =>
-    v.labels.topic === 'plt-kafka-hooks-http-error' &&
-    v.labels.reason.startsWith('http_')
+  // Wait for the metric to be updated
+  const matchingMetric = await waitForMetricUpdate(
+    registry,
+    'kafka_hooks_dlq_messages_total',
+    (labels) => labels.topic === 'plt-kafka-hooks-http-error' && labels.reason.startsWith('http_')
   )
 
-  t.assert.ok(httpErrorMetric, 'DLQ metric with http status code reason should exist')
-  t.assert.strictEqual(httpErrorMetric.value, 1, 'DLQ metric should be incremented by 1')
+  t.assert.ok(matchingMetric, 'DLQ metric with http status code reason should exist')
+  t.assert.strictEqual(matchingMetric.value, 1, 'DLQ metric should be incremented by 1')
 
   // Log the actual reason for debugging
-  t.diagnostic(`DLQ reason: ${httpErrorMetric.labels.reason}`)
+  t.diagnostic(`DLQ reason: ${matchingMetric.labels.reason}`)
 
   // Restore original prometheus
   if (originalPrometheus) {

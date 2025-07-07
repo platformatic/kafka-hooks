@@ -5,3 +5,4 @@ node_modules/
 .vscode
 kafka-hooks-app
 .claude
+pnpm-lock.yaml

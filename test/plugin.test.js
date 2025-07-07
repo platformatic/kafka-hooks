@@ -1,4 +1,4 @@
-import { sleep, stringDeserializer, jsonDeserializer, Consumer } from '@platformatic/kafka'
+import { stringDeserializer, jsonDeserializer, Consumer } from '@platformatic/kafka'
 import promClient from 'prom-client'
 import { buildServer } from '@platformatic/service'
 import { NOT_FOUND } from 'http-errors-enhanced'
@@ -102,6 +102,33 @@ async function publishMessage (server, topic, message, headers = {}) {
   }
 
   return res
+}
+
+async function waitForCondition (conditionFn) {
+  const timeoutMs = 5000
+  const intervalMs = 100
+  const startTime = Date.now()
+
+  while (Date.now() - startTime < timeoutMs) {
+    if (await conditionFn()) {
+      return true
+    }
+    await new Promise(resolve => setTimeout(resolve, intervalMs))
+  }
+
+  throw new Error(`Condition not met within ${timeoutMs}ms`)
+}
+
+async function waitForMetricValue (registry, metricName, labelMatcher) {
+  await waitForCondition(async () => {
+    const metric = registry.getSingleMetric(metricName)
+    if (!metric) return false
+
+    const metricValue = await metric.get()
+    const matchingMetric = metricValue.values.find(v => labelMatcher(v.labels))
+
+    return matchingMetric && matchingMetric.value >= 1
+  })
 }
 
 test('should produce messages to Kafka and then forward them to the target server', async t => {
@@ -250,14 +277,23 @@ test('should not publish a permanently failed message to the DLQ if asked to', a
   const value = randomUUID()
 
   let dlqMessages = 0
+  let processingComplete = false
+
   stream.on('data', message => {
     if (message.topic === defaultDlqTopic) {
       dlqMessages++
     }
+    // Mark processing as complete when we receive the original message
+    if (message.topic === 'plt-kafka-hooks-fail') {
+      processingComplete = true
+    }
   })
 
   await publishMessage(server, 'plt-kafka-hooks-fail', value)
-  await sleep(3000)
+
+  // Wait for the message to be processed and retries to complete
+  await waitForCondition(() => processingComplete)
+
   deepStrictEqual(dlqMessages, 0)
 })
 
@@ -752,7 +788,13 @@ test('should increment DLQ metrics with network_error reason when network error 
   // Get the DLQ counter metric before sending the message
   const dlqMetric = registry.getSingleMetric('kafka_hooks_dlq_messages_total')
   await publishMessage(server, 'plt-kafka-hooks-network-error', 'test message')
-  await sleep(1500)
+
+  // Wait for the metric to be updated
+  await waitForMetricValue(
+    registry,
+    'kafka_hooks_dlq_messages_total',
+    (labels) => labels.topic === 'plt-kafka-hooks-network-error' && labels.reason === 'network_error'
+  )
 
   // Get the metric value after processing
   const finalValue = await dlqMetric.get()
@@ -803,8 +845,12 @@ test('should increment DLQ metrics with http status code reason when HTTP error 
 
   await publishMessage(server, 'plt-kafka-hooks-http-error', 'test message')
 
-  // Wait for processing to complete
-  await sleep(1500)
+  // Wait for the metric to be updated
+  await waitForMetricValue(
+    registry,
+    'kafka_hooks_dlq_messages_total',
+    (labels) => labels.topic === 'plt-kafka-hooks-http-error' && labels.reason.startsWith('http_')
+  )
 
   // Get the DLQ counter metric
   const dlqMetric = registry.getSingleMetric('kafka_hooks_dlq_messages_total')

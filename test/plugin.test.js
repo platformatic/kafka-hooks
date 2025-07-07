@@ -107,21 +107,15 @@ async function publishMessage (server, topic, message, headers = {}) {
 async function waitForMetricUpdate (registry, metricName, labelMatcher) {
   const { promise, resolve } = Promise.withResolvers()
 
-  const checkMetric = async () => {
-    const metric = registry.getSingleMetric(metricName)
-    if (!metric) return false
+  const metric = registry.getSingleMetric(metricName)
+  if (!metric) return false
 
-    const metricValue = await metric.get()
-    const matchingMetric = metricValue.values.find(v => labelMatcher(v.labels))
+  const metricValue = await metric.get()
+  const matchingMetric = metricValue.values.find(v => labelMatcher(v.labels))
 
-    if (matchingMetric && matchingMetric.value >= 1) {
-      resolve(matchingMetric)
-      return true
-    }
-    return false
+  if (matchingMetric && matchingMetric.value >= 1) {
+    resolve(matchingMetric)
   }
-
-  await checkMetric()
 
   return promise
 }

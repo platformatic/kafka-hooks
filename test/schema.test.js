@@ -36,7 +36,7 @@ test('should export stackable schema', async () => {
           type: 'object',
           properties: {
             topic: { type: 'string' },
-            dlq: { oneOf: [{ type: 'string', default: 'plt-kafka-hooks-dlq' }, { type: 'boolean' }] },
+            dlq: { anyOf: [{ type: 'boolean' }, { type: 'string', default: 'plt-kafka-hooks-dlq' }] },
             url: { type: 'string' },
             method: { type: 'string', default: 'POST', enum: ['POST', 'PUT', 'PATCH', 'DELETE'] },
             headers: {

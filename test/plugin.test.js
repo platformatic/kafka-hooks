@@ -1,68 +1,75 @@
-import { stringDeserializer, jsonDeserializer, Consumer } from '@platformatic/kafka'
-import promClient from 'prom-client'
-import { buildServer } from '@platformatic/service'
+import { Consumer, jsonDeserializer, stringDeserializer } from '@platformatic/kafka'
 import { NOT_FOUND } from 'http-errors-enhanced'
-import { deepStrictEqual } from 'node:assert'
+import { deepStrictEqual, ok, strictEqual } from 'node:assert'
 import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
-import { attemptHeader, correlationIdHeader, defaultDlqTopic, keyHeader, pathParamsHeader, queryStringHeader } from '../lib/definitions.js'
-import { stackable } from '../lib/index.js'
+import promClient from 'prom-client'
+import {
+  attemptHeader,
+  correlationIdHeader,
+  defaultDlqTopic,
+  keyHeader,
+  pathParamsHeader,
+  queryStringHeader
+} from '../lib/definitions.js'
+import { create } from '../lib/index.js'
 import { createMonitor } from './fixtures/kafka-monitor.js'
 import { createTargetServer } from './fixtures/target-server.js'
 
-async function startStackable (t, url = 'http://localhost:3043', opts = {}) {
-  const config = {
-    $schema: '../../schema.json',
-    module: '../../lib/index.js',
-    kafka: {
-      concurrency: 5,
-      brokers: ['localhost:9092'],
-      topics: [
-        {
-          topic: 'plt-kafka-hooks-success',
-          url: `${url}/success`,
-          retries: 1,
-          retryDelay: 100
+async function startStackable (t, url = 'http://localhost:3043', opts = {}, context = {}) {
+  const server = await create(
+    process.cwd(),
+    {
+      $schema: '../schema.json',
+      module: '../lib/index.js',
+      kafka: {
+        concurrency: 5,
+        brokers: ['localhost:9092'],
+        topics: [
+          {
+            topic: 'plt-kafka-hooks-success',
+            url: `${url}/success`,
+            retries: 1,
+            retryDelay: 250
+          },
+          {
+            topic: 'plt-kafka-hooks-fail',
+            url: `${url}/fail`,
+            retries: 1,
+            retryDelay: 250
+          },
+          {
+            topic: 'plt-kafka-hooks-retry',
+            url: `${url}/retry`,
+            retries: 3,
+            retryDelay: 250
+          }
+        ],
+        consumer: {
+          groupId: randomUUID(),
+          maxWaitTime: 500,
+          sessionTimeout: 10000,
+          rebalanceTimeout: 15000,
+          heartbeatInterval: 500
         },
-        {
-          topic: 'plt-kafka-hooks-fail',
-          url: `${url}/fail`,
-          retries: 1,
-          retryDelay: 100
-        },
-        {
-          topic: 'plt-kafka-hooks-retry',
-          url: `${url}/retry`,
-          retries: 3,
-          retryDelay: 100
-        }
-      ],
-      consumer: {
-        groupId: randomUUID(),
-        maxWaitTime: 500,
-        sessionTimeout: 10000,
-        rebalanceTimeout: 15000,
-        heartbeatInterval: 500
+        ...opts
       },
-      ...opts
-    },
-    port: 0,
-    server: {
-      logger: {
-        level: 'fatal'
+      server: {
+        logger: {
+          level: 'fatal'
+        }
       }
-    }
-  }
+    },
+    context
+  )
 
-  const server = await buildServer(config, stackable)
   t.after(async () => {
-    t.diagnostic('Stopping server')
     await server.close()
-    t.diagnostic('server stopped')
   })
 
+  await server.init()
   return server
 }
 
@@ -93,8 +100,9 @@ async function publishMessage (server, topic, message, headers = {}) {
     headers,
     payload: message
   })
+
   if (res.statusCode >= 400) {
-    const json = await res.json()
+    const json = JSON.parse(res.body)
     const err = new Error(`Failed to publish message: ${json.message}`)
     err.code = res.statusCode
     err.json = json
@@ -169,14 +177,13 @@ test('should produce messages to Kafka and then forward them to the target serve
 })
 
 test('should return an error for non existing errors', async t => {
-  t.plan(2)
-
   const server = await startStackable(t)
   try {
     await publishMessage(server, 'invalid', 'test')
+    throw new Error('Expected error not thrown.')
   } catch (err) {
-    t.assert.deepStrictEqual(err.code, NOT_FOUND)
-    t.assert.deepStrictEqual(err.json, {
+    deepStrictEqual(err.code, NOT_FOUND)
+    deepStrictEqual(err.json, {
       code: 'HTTP_ERROR_NOT_FOUND',
       error: 'Not Found',
       message: 'Topic invalid not found.',
@@ -229,7 +236,7 @@ test('should publish a permanently failed message to the DLQ', async t => {
         url: 'http://127.0.0.1:1/fail',
         dlq: true,
         retries: 3,
-        retryDelay: 100
+        retryDelay: 250
       }
     ]
   })
@@ -259,7 +266,7 @@ test('should not publish a permanently failed message to the DLQ if asked to', a
         url: 'http://127.0.0.1:1/fail',
         dlq: false,
         retries: 1,
-        retryDelay: 100
+        retryDelay: 250
       }
     ]
   })
@@ -361,8 +368,8 @@ test('should handle request/response pattern', async t => {
   }
 
   // Verify the request message has correlation ID
-  t.assert.ok(headers[correlationIdHeader])
-  t.assert.strictEqual(requestMessage.value, 'test request data')
+  ok(headers[correlationIdHeader])
+  strictEqual(requestMessage.value, 'test request data')
 
   // Simulate a response by sending to response topic via HTTP API
   const correlationId = headers[correlationIdHeader]
@@ -374,23 +381,28 @@ test('should handle request/response pattern', async t => {
 
   // Wait for the HTTP response
   const response = await requestPromise
-  t.assert.strictEqual(response.statusCode, 200)
-  t.assert.strictEqual(response.payload, 'response data')
-  t.assert.strictEqual(response.headers['content-type'], 'text/plain')
+  strictEqual(response.statusCode, 200)
+  strictEqual(response.body, 'response data')
+  strictEqual(response.headers['content-type'], 'text/plain')
 })
 
 test('should timeout request/response when no response is received', async t => {
-  const server = await startStackable(t, '', {
-    topics: [],
-    requestResponse: [
-      {
-        path: '/api/timeout',
-        requestTopic: 'plt-kafka-hooks-request',
-        responseTopic: 'plt-kafka-hooks-response',
-        timeout: 1000
-      }
-    ]
-  })
+  const server = await startStackable(
+    t,
+    '',
+    {
+      topics: [],
+      requestResponse: [
+        {
+          path: '/api/timeout',
+          requestTopic: 'plt-kafka-hooks-request',
+          responseTopic: 'plt-kafka-hooks-response',
+          timeout: 1000
+        }
+      ]
+    },
+    { validate: false }
+  )
 
   const start = Date.now()
   const response = await server.inject({
@@ -400,10 +412,10 @@ test('should timeout request/response when no response is received', async t => 
   })
   const elapsed = Date.now() - start
 
-  t.assert.strictEqual(response.statusCode, 504)
-  t.assert.ok(elapsed >= 1000)
-  const json = response.json()
-  t.assert.strictEqual(json.code, 'HTTP_ERROR_GATEWAY_TIMEOUT')
+  strictEqual(response.statusCode, 504)
+  ok(elapsed >= 1000)
+  const json = JSON.parse(response.body)
+  strictEqual(json.code, 'HTTP_ERROR_GATEWAY_TIMEOUT')
 })
 
 test('should handle request/response pattern with path parameters', async t => {
@@ -458,14 +470,14 @@ test('should handle request/response pattern with path parameters', async t => {
   }
 
   // Verify the request message has correlation ID and path params
-  t.assert.ok(headers[correlationIdHeader])
-  t.assert.ok(headers[pathParamsHeader])
-  t.assert.strictEqual(requestMessage.value, 'test request data')
+  ok(headers[correlationIdHeader])
+  ok(headers[pathParamsHeader])
+  strictEqual(requestMessage.value, 'test request data')
 
   // Verify path parameters are correctly passed
   const pathParams = JSON.parse(headers[pathParamsHeader])
-  t.assert.strictEqual(pathParams.userId, '123')
-  t.assert.strictEqual(pathParams.orderId, '456')
+  strictEqual(pathParams.userId, '123')
+  strictEqual(pathParams.orderId, '456')
 
   // Simulate a response
   const correlationId = headers[correlationIdHeader]
@@ -477,8 +489,8 @@ test('should handle request/response pattern with path parameters', async t => {
 
   // Wait for the HTTP response
   const response = await requestPromise
-  t.assert.strictEqual(response.statusCode, 200)
-  t.assert.strictEqual(response.payload, 'response data')
+  strictEqual(response.statusCode, 200)
+  strictEqual(response.body, 'response data')
 })
 
 test('should handle request/response pattern with query string parameters', async t => {
@@ -533,15 +545,15 @@ test('should handle request/response pattern with query string parameters', asyn
   }
 
   // Verify the request message has correlation ID and query string
-  t.assert.ok(headers[correlationIdHeader])
-  t.assert.ok(headers[queryStringHeader])
-  t.assert.strictEqual(requestMessage.value, 'search request')
+  ok(headers[correlationIdHeader])
+  ok(headers[queryStringHeader])
+  strictEqual(requestMessage.value, 'search request')
 
   // Verify query string parameters are correctly passed
   const queryParams = JSON.parse(headers[queryStringHeader])
-  t.assert.strictEqual(queryParams.q, 'test')
-  t.assert.strictEqual(queryParams.limit, '10')
-  t.assert.strictEqual(queryParams.sort, 'date')
+  strictEqual(queryParams.q, 'test')
+  strictEqual(queryParams.limit, '10')
+  strictEqual(queryParams.sort, 'date')
 
   // Simulate a response
   const correlationId = headers[correlationIdHeader]
@@ -553,8 +565,8 @@ test('should handle request/response pattern with query string parameters', asyn
 
   // Wait for the HTTP response
   const response = await requestPromise
-  t.assert.strictEqual(response.statusCode, 200)
-  t.assert.strictEqual(response.payload, 'search results')
+  strictEqual(response.statusCode, 200)
+  strictEqual(response.body, 'search results')
 })
 
 test('should handle request/response pattern with both path and query parameters', async t => {
@@ -609,19 +621,19 @@ test('should handle request/response pattern with both path and query parameters
   }
 
   // Verify the request message has correlation ID, path params, and query string
-  t.assert.ok(headers[correlationIdHeader])
-  t.assert.ok(headers[pathParamsHeader])
-  t.assert.ok(headers[queryStringHeader])
-  t.assert.strictEqual(requestMessage.value, '{"action": "update"}')
+  ok(headers[correlationIdHeader])
+  ok(headers[pathParamsHeader])
+  ok(headers[queryStringHeader])
+  strictEqual(requestMessage.value, '{"action": "update"}')
 
   // Verify path parameters
   const pathParams = JSON.parse(headers[pathParamsHeader])
-  t.assert.strictEqual(pathParams.userId, '789')
+  strictEqual(pathParams.userId, '789')
 
   // Verify query string parameters
   const queryParams = JSON.parse(headers[queryStringHeader])
-  t.assert.strictEqual(queryParams.include, 'profile')
-  t.assert.strictEqual(queryParams.expand, 'orders')
+  strictEqual(queryParams.include, 'profile')
+  strictEqual(queryParams.expand, 'orders')
 
   // Simulate a response
   const correlationId = headers[correlationIdHeader]
@@ -633,8 +645,8 @@ test('should handle request/response pattern with both path and query parameters
 
   // Wait for the HTTP response
   const response = await requestPromise
-  t.assert.strictEqual(response.statusCode, 200)
-  t.assert.strictEqual(response.payload, '{"status": "updated"}')
+  strictEqual(response.statusCode, 200)
+  strictEqual(response.body, '{"status": "updated"}')
 })
 
 test('should ignore response message missing correlation ID', async t => {
@@ -674,10 +686,10 @@ test('should ignore response message missing correlation ID', async t => {
 
   // The request should still timeout because the invalid response was ignored
   const response = await requestPromise
-  t.assert.strictEqual(response.statusCode, 504) // Gateway timeout
+  strictEqual(response.statusCode, 504) // Gateway timeout
 
-  const json = response.json()
-  t.assert.strictEqual(json.code, 'HTTP_ERROR_GATEWAY_TIMEOUT')
+  const json = JSON.parse(response.body)
+  strictEqual(json.code, 'HTTP_ERROR_GATEWAY_TIMEOUT')
 })
 
 test('should handle no pending request found for correlation ID', async t => {
@@ -750,8 +762,8 @@ test('should handle no pending request found for correlation ID', async t => {
 
   // Verify the legitimate request still works properly
   const response = await requestPromise
-  t.assert.strictEqual(response.statusCode, 200)
-  t.assert.strictEqual(response.payload, 'legitimate response')
+  strictEqual(response.statusCode, 200)
+  strictEqual(response.body, 'legitimate response')
 })
 
 test('should increment DLQ metrics with network_error reason when network error occurs', async t => {
@@ -772,7 +784,7 @@ test('should increment DLQ metrics with network_error reason when network error 
         url: 'http://127.0.0.1:1/fail', // Invalid URL that will cause network error
         dlq: true,
         retries: 1,
-        retryDelay: 100
+        retryDelay: 250
       }
     ]
   })
@@ -791,11 +803,11 @@ test('should increment DLQ metrics with network_error reason when network error 
   const matchingMetric = await waitForMetricUpdate(
     registry,
     'kafka_hooks_dlq_messages_total',
-    (labels) => labels.topic === 'plt-kafka-hooks-network-error' && labels.reason === 'network_error'
+    labels => labels.topic === 'plt-kafka-hooks-network-error' && labels.reason === 'network_error'
   )
 
-  t.assert.ok(matchingMetric, 'DLQ metric with network_error reason should exist')
-  t.assert.strictEqual(matchingMetric.value, 1, 'DLQ metric should be incremented by 1')
+  ok(matchingMetric, 'DLQ metric with network_error reason should exist')
+  strictEqual(matchingMetric.value, 1, 'DLQ metric should be incremented by 1')
 
   // Restore original prometheus
   if (originalPrometheus) {
@@ -829,7 +841,7 @@ test('should increment DLQ metrics with http status code reason when HTTP error 
         url: `${targetUrl}/fail`, // Use the existing /fail endpoint
         dlq: true,
         retries: 1,
-        retryDelay: 100
+        retryDelay: 250
       }
     ]
   })
@@ -849,11 +861,11 @@ test('should increment DLQ metrics with http status code reason when HTTP error 
   const matchingMetric = await waitForMetricUpdate(
     registry,
     'kafka_hooks_dlq_messages_total',
-    (labels) => labels.topic === 'plt-kafka-hooks-http-error' && labels.reason.startsWith('http_')
+    labels => labels.topic === 'plt-kafka-hooks-http-error' && labels.reason.startsWith('http_')
   )
 
-  t.assert.ok(matchingMetric, 'DLQ metric with http status code reason should exist')
-  t.assert.strictEqual(matchingMetric.value, 1, 'DLQ metric should be incremented by 1')
+  ok(matchingMetric, 'DLQ metric with http status code reason should exist')
+  strictEqual(matchingMetric.value, 1, 'DLQ metric should be incremented by 1')
 
   // Log the actual reason for debugging
   t.diagnostic(`DLQ reason: ${matchingMetric.labels.reason}`)

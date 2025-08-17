@@ -41,8 +41,8 @@
   },
   "dependencies": {
     "@platformatic/kafka": "^1.8.0",
-    "@platformatic/service": "3.0.0-alpha.1",
-    "@platformatic/utils": "3.0.0-alpha.1",
+    "@platformatic/foundation": "3.0.0-alpha.5",
+    "@platformatic/service": "3.0.0-alpha.5",
     "http-errors-enhanced": "^3.0.2",
     "hwp": "^0.4.1",
     "undici": "^7.8.0"

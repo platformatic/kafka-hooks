@@ -1,4 +1,4 @@
-import { safeRemove } from '@platformatic/utils'
+import { safeRemove } from '@platformatic/foundation'
 import { deepStrictEqual, strictEqual } from 'node:assert'
 import { mkdtemp, readdir, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

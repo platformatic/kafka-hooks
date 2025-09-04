@@ -80,7 +80,7 @@ test('should generate a stackable app', async t => {
   const generator = new Generator()
 
   generator.setConfig({
-    serviceName: 'stackable-app',
+    applicationName: 'stackable-app',
     targetDirectory: testDir,
     hostname: 'server.example.com',
     broker: 'kafka.example.com:9092',

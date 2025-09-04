@@ -1,10 +1,10 @@
 import { Consumer, stringDeserializer } from '@platformatic/kafka'
-import { buildServer } from '@platformatic/service'
+import { deepStrictEqual, ok, strictEqual } from 'node:assert'
 import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { test } from 'node:test'
 import { correlationIdHeader, pathParamsHeader, queryStringHeader } from '../lib/definitions.js'
-import { stackable } from '../lib/index.js'
+import { create } from '../lib/index.js'
 
 /**
  * Working integration test demonstrating request/response pattern
@@ -12,7 +12,7 @@ import { stackable } from '../lib/index.js'
  */
 
 async function startStackable (t, requestResponseConfig, topics = []) {
-  const config = {
+  const server = await create(process.cwd(), {
     $schema: '../schema.json',
     module: '../lib/index.js',
     kafka: {
@@ -28,19 +28,18 @@ async function startStackable (t, requestResponseConfig, topics = []) {
         heartbeatInterval: 500
       }
     },
-    port: 0,
     server: {
       logger: {
         level: 'fatal'
       }
     }
-  }
+  })
 
-  const server = await buildServer(config, stackable)
   t.after(async () => {
     await server.close()
   })
 
+  await server.init()
   return server
 }
 
@@ -64,7 +63,7 @@ async function publishMessage (server, topic, message, headers = {}) {
   })
 
   if (res.statusCode >= 400) {
-    const json = await res.json()
+    const json = JSON.parse(res.body)
     const err = new Error(`Failed to publish message: ${json.message}`)
     err.code = res.statusCode
     err.json = json
@@ -90,21 +89,26 @@ test('integration: complete request/response flow with path parameters and query
   t.after(() => requestConsumer.close(true))
 
   // Start kafka-hooks server with request/response configuration
-  const server = await startStackable(t, [
-    {
-      path: '/api/users/:userId/orders/:orderId',
-      requestTopic: 'integration-requests',
-      responseTopic: 'integration-responses',
-      timeout: 15000
-    }
-  ], [
-    {
-      topic: 'integration-responses',
-      url: 'http://localhost:3043/response'
-    }
-  ])
+  const server = await startStackable(
+    t,
+    [
+      {
+        path: '/api/users/:userId/orders/:orderId',
+        requestTopic: 'integration-requests',
+        responseTopic: 'integration-responses',
+        timeout: 15000
+      }
+    ],
+    [
+      {
+        topic: 'integration-responses',
+        url: 'http://localhost:3043/response'
+      }
+    ]
+  )
 
   // Make HTTP request with path parameters and query strings
+
   const requestPromise = server.inject({
     method: 'POST',
     url: '/api/users/user123/orders/order456?include=items&format=detailed&currency=USD',
@@ -128,26 +132,26 @@ test('integration: complete request/response flow with path parameters and query
   }
 
   // Check correlation ID is present
-  t.assert.ok(headers[correlationIdHeader], 'Should have correlation ID')
+  ok(headers[correlationIdHeader], 'Should have correlation ID')
 
   // Check path parameters
-  t.assert.ok(headers[pathParamsHeader], 'Should have path parameters')
+  ok(headers[pathParamsHeader], 'Should have path parameters')
   const pathParams = JSON.parse(headers[pathParamsHeader])
-  t.assert.strictEqual(pathParams.userId, 'user123')
-  t.assert.strictEqual(pathParams.orderId, 'order456')
+  strictEqual(pathParams.userId, 'user123')
+  strictEqual(pathParams.orderId, 'order456')
 
   // Check query string parameters
-  t.assert.ok(headers[queryStringHeader], 'Should have query string parameters')
+  ok(headers[queryStringHeader], 'Should have query string parameters')
   const queryParams = JSON.parse(headers[queryStringHeader])
-  t.assert.strictEqual(queryParams.include, 'items')
-  t.assert.strictEqual(queryParams.format, 'detailed')
-  t.assert.strictEqual(queryParams.currency, 'USD')
+  strictEqual(queryParams.include, 'items')
+  strictEqual(queryParams.format, 'detailed')
+  strictEqual(queryParams.currency, 'USD')
 
   // Check request body
   const requestData = JSON.parse(requestMessage.value)
-  t.assert.strictEqual(requestData.action, 'get_order_details')
-  t.assert.deepStrictEqual(requestData.fields, ['total', 'status', 'items'])
-  t.assert.strictEqual(requestData.options.includeHistory, true)
+  strictEqual(requestData.action, 'get_order_details')
+  deepStrictEqual(requestData.fields, ['total', 'status', 'items'])
+  strictEqual(requestData.options.includeHistory, true)
 
   // Simulate processing service response
   const correlationId = headers[correlationIdHeader]
@@ -182,20 +186,20 @@ test('integration: complete request/response flow with path parameters and query
 
   // Verify the HTTP response
   const response = await requestPromise
-  t.assert.strictEqual(response.statusCode, 200)
-  t.assert.strictEqual(response.headers['content-type'], 'application/json')
+  strictEqual(response.statusCode, 200)
+  strictEqual(response.headers['content-type'], 'application/json')
 
-  const responseData = response.json()
-  t.assert.strictEqual(responseData.userId, 'user123')
-  t.assert.strictEqual(responseData.orderId, 'order456')
-  t.assert.strictEqual(responseData.order.id, 'order456')
-  t.assert.strictEqual(responseData.order.total, 159.99)
-  t.assert.strictEqual(responseData.order.status, 'shipped')
-  t.assert.strictEqual(responseData.order.currency, 'USD')
-  t.assert.strictEqual(responseData.order.items.length, 2)
-  t.assert.strictEqual(responseData.format, 'detailed')
-  t.assert.strictEqual(responseData.includeHistory, true)
-  t.assert.strictEqual(responseData.history.length, 2)
+  const responseData = JSON.parse(response.body)
+  strictEqual(responseData.userId, 'user123')
+  strictEqual(responseData.orderId, 'order456')
+  strictEqual(responseData.order.id, 'order456')
+  strictEqual(responseData.order.total, 159.99)
+  strictEqual(responseData.order.status, 'shipped')
+  strictEqual(responseData.order.currency, 'USD')
+  strictEqual(responseData.order.items.length, 2)
+  strictEqual(responseData.format, 'detailed')
+  strictEqual(responseData.includeHistory, true)
+  strictEqual(responseData.history.length, 2)
 })
 
 test('integration: error handling with custom status codes', async t => {
@@ -214,19 +218,23 @@ test('integration: error handling with custom status codes', async t => {
   t.after(() => requestConsumer.close(true))
 
   // Start kafka-hooks server
-  const server = await startStackable(t, [
-    {
-      path: '/api/products/:productId',
-      requestTopic: 'integration-error-requests',
-      responseTopic: 'integration-error-responses',
-      timeout: 15000
-    }
-  ], [
-    {
-      topic: 'integration-error-responses',
-      url: 'http://localhost:3043/response'
-    }
-  ])
+  const server = await startStackable(
+    t,
+    [
+      {
+        path: '/api/products/:productId',
+        requestTopic: 'integration-error-requests',
+        responseTopic: 'integration-error-responses',
+        timeout: 15000
+      }
+    ],
+    [
+      {
+        topic: 'integration-error-responses',
+        url: 'http://localhost:3043/response'
+      }
+    ]
+  )
 
   // Make HTTP request for non-existent product
   const requestPromise = server.inject({
@@ -275,17 +283,17 @@ test('integration: error handling with custom status codes', async t => {
 
   // Verify the HTTP error response
   const response = await requestPromise
-  t.assert.strictEqual(response.statusCode, 404)
-  t.assert.strictEqual(response.headers['content-type'], 'application/json')
+  strictEqual(response.statusCode, 404)
+  strictEqual(response.headers['content-type'], 'application/json')
 
-  const errorData = response.json()
-  t.assert.strictEqual(errorData.error, 'Product not found')
-  t.assert.strictEqual(errorData.code, 'PRODUCT_NOT_FOUND')
-  t.assert.strictEqual(errorData.productId, 'nonexistent123')
-  t.assert.strictEqual(errorData.source, 'catalog')
-  t.assert.ok(errorData.timestamp)
-  t.assert.strictEqual(errorData.details.message, 'The requested product could not be found in the catalog')
-  t.assert.strictEqual(errorData.details.suggestion, 'Please check the product ID and try again')
+  const errorData = JSON.parse(response.body)
+  strictEqual(errorData.error, 'Product not found')
+  strictEqual(errorData.code, 'PRODUCT_NOT_FOUND')
+  strictEqual(errorData.productId, 'nonexistent123')
+  strictEqual(errorData.source, 'catalog')
+  ok(errorData.timestamp)
+  strictEqual(errorData.details.message, 'The requested product could not be found in the catalog')
+  strictEqual(errorData.details.suggestion, 'Please check the product ID and try again')
 })
 
 test('integration: demonstrates microservice communication pattern', async t => {
@@ -319,19 +327,23 @@ test('integration: demonstrates microservice communication pattern', async t => 
   t.after(() => requestConsumer.close(true))
 
   // Gateway service configuration
-  const gateway = await startStackable(t, [
-    {
-      path: '/api/users/:userId/profile',
-      requestTopic: 'user-profile-requests',
-      responseTopic: 'user-profile-responses',
-      timeout: 15000
-    }
-  ], [
-    {
-      topic: 'user-profile-responses',
-      url: 'http://localhost:3043/response'
-    }
-  ])
+  const gateway = await startStackable(
+    t,
+    [
+      {
+        path: '/api/users/:userId/profile',
+        requestTopic: 'user-profile-requests',
+        responseTopic: 'user-profile-responses',
+        timeout: 15000
+      }
+    ],
+    [
+      {
+        topic: 'user-profile-responses',
+        url: 'http://localhost:3043/response'
+      }
+    ]
+  )
 
   // Client makes HTTP request to gateway
   const clientRequest = gateway.inject({
@@ -362,11 +374,11 @@ test('integration: demonstrates microservice communication pattern', async t => 
   const requestBody = JSON.parse(kafkaRequest.value)
 
   // Verify microservice receives complete context
-  t.assert.strictEqual(pathParams.userId, 'emp789')
-  t.assert.strictEqual(queryParams.expand, 'permissions')
-  t.assert.strictEqual(queryParams.include, 'recent_activity')
-  t.assert.strictEqual(requestBody.requestedBy, 'admin-user')
-  t.assert.strictEqual(requestBody.reason, 'security_audit')
+  strictEqual(pathParams.userId, 'emp789')
+  strictEqual(queryParams.expand, 'permissions')
+  strictEqual(queryParams.include, 'recent_activity')
+  strictEqual(requestBody.requestedBy, 'admin-user')
+  strictEqual(requestBody.reason, 'security_audit')
 
   // Simulate microservice processing and response
   const serviceResponse = {
@@ -400,17 +412,17 @@ test('integration: demonstrates microservice communication pattern', async t => 
   // Gateway returns response to client
   const clientResponse = await clientRequest
 
-  t.assert.strictEqual(clientResponse.statusCode, 200)
-  const data = clientResponse.json()
+  strictEqual(clientResponse.statusCode, 200)
+  const data = JSON.parse(clientResponse.body)
 
   // Verify complete data flow
-  t.assert.strictEqual(data.userId, 'emp789')
-  t.assert.strictEqual(data.profile.name, 'Jane Smith')
-  t.assert.strictEqual(data.profile.role, 'senior_developer')
-  t.assert.deepStrictEqual(data.permissions, ['code_review', 'deploy_staging', 'access_logs'])
-  t.assert.strictEqual(data.recent_activity.length, 2)
-  t.assert.strictEqual(data.audit.requestedBy, 'admin-user')
-  t.assert.strictEqual(data.audit.reason, 'security_audit')
-  t.assert.strictEqual(data.audit.service, 'user-profile-service')
-  t.assert.ok(data.audit.processedAt)
+  strictEqual(data.userId, 'emp789')
+  strictEqual(data.profile.name, 'Jane Smith')
+  strictEqual(data.profile.role, 'senior_developer')
+  deepStrictEqual(data.permissions, ['code_review', 'deploy_staging', 'access_logs'])
+  strictEqual(data.recent_activity.length, 2)
+  strictEqual(data.audit.requestedBy, 'admin-user')
+  strictEqual(data.audit.reason, 'security_audit')
+  strictEqual(data.audit.service, 'user-profile-service')
+  ok(data.audit.processedAt)
 })

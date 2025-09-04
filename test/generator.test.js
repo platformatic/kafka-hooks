@@ -1,4 +1,4 @@
-import { safeRemove } from '@platformatic/utils'
+import { safeRemove } from '@platformatic/foundation'
 import { deepStrictEqual, strictEqual } from 'node:assert'
 import { mkdtemp, readdir, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -80,7 +80,7 @@ test('should generate a stackable app', async t => {
   const generator = new Generator()
 
   generator.setConfig({
-    serviceName: 'stackable-app',
+    applicationName: 'stackable-app',
     targetDirectory: testDir,
     hostname: 'server.example.com',
     broker: 'kafka.example.com:9092',

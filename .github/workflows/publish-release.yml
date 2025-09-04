@@ -46,7 +46,9 @@ jobs:
           git commit -a -m "Bumped v${{ inputs.version }}"
           git push origin HEAD:${{ github.ref }}
       - name: Publish new version
-        run: pnpm publish --access public --tag ${{ inputs.prerelease == true && 'next' || 'latest' }}
+        run: |
+          npm install npm -g
+          npm publish --access public --tag ${{ inputs.prerelease == true && 'next' || 'latest' }}
       - name: Create release notes
         run: |
           npx @matteo.collina/release-notes -a ${{ secrets.GITHUB_TOKEN }} -t v${{ inputs.version }} -r ${{ github.repository }} -o ${{ github.repository_owner }} ${{ github.event.inputs.prerelease == 'true' && '-p' || '' }} -c ${{ github.ref }}

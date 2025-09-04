@@ -1,6 +1,6 @@
 {
   "name": "@platformatic/kafka-hooks",
-  "version": "0.6.0-alpha.2",
+  "version": "0.6.0-alpha.3",
   "description": "Kafka based webhooks system",
   "homepage": "https://github.com/platformatic/kafka-hooks",
   "author": "Platformatic Inc. <oss@platformatic.dev> (https://platformatic.dev)",

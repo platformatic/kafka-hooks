@@ -26,7 +26,7 @@ jobs:
       - name: Use supported Node.js Version
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 22
       - name: Restore cached dependencies
         uses: actions/cache@v4
         with:
@@ -38,17 +38,15 @@ jobs:
           version: latest
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Change version number
-        uses: mikefarah/yq@master
-        with:
-          cmd: yq -i '.version = "${{ inputs.version }}"' package.json
-      - name: GIT commit and push all changed files
+      - name: Bump version and push commit
         run: |
+          pnpm version ${{ inputs.version }} --no-git-tag-version
           git config --global user.name "${{ github.actor }}"
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
           git commit -a -m "Bumped v${{ inputs.version }}"
           git push origin HEAD:${{ github.ref }}
-      - run: npm publish --access public --tag ${{ inputs.prerelease == true && 'next' || 'latest' }}
-      - name: 'Create release notes'
+      - name: Publish new version
+        run: pnpm publish --access public --tag ${{ inputs.prerelease == true && 'next' || 'latest' }}
+      - name: Create release notes
         run: |
           npx @matteo.collina/release-notes -a ${{ secrets.GITHUB_TOKEN }} -t v${{ inputs.version }} -r ${{ github.repository }} -o ${{ github.repository_owner }} ${{ github.event.inputs.prerelease == 'true' && '-p' || '' }} -c ${{ github.ref }}

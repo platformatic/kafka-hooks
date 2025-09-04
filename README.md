@@ -23,14 +23,6 @@ npx wattpm@latest create
 
 And select `@platformatic/kafka-hooks` from the list of available packages.
 
-## Install Standalone
-
-```bash
-npx --package=@platformatic/kafka-hooks create-platformatic-kafka-hooks
-cd kafka-hooks-app
-npm install
-```
-
 ## Configuration
 
 Configure your Kafka webhooks in the `platformatic.json` file:
@@ -67,37 +59,37 @@ Configure your Kafka webhooks in the `platformatic.json` file:
 
 ### Core Options
 
-| Option          | Description                                                                                        | Default |
-| --------------- | -------------------------------------------------------------------------------------------------- | ------- |
-| `brokers`       | The list of Kafka brokers in the form `host:port`.                                                 | Required |
-| `consumer`      | Any option supported by a [@platformatic/kafka](https://github.com/platformatic/kafka) `Consumer`. | None    |
-| `concurrency`   | How many messages to process in parallel.                                                          | `10`    |
+| Option        | Description                                                                                        | Default  |
+| ------------- | -------------------------------------------------------------------------------------------------- | -------- |
+| `brokers`     | The list of Kafka brokers in the form `host:port`.                                                 | Required |
+| `consumer`    | Any option supported by a [@platformatic/kafka](https://github.com/platformatic/kafka) `Consumer`. | None     |
+| `concurrency` | How many messages to process in parallel.                                                          | `10`     |
 
 ### Topics Configuration
 
 Each item in the `topics` array supports the following options:
 
-| Option                     | Description                                                                                                | Default               |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------- |
-| `topic`                    | The topic to consume messages from.                                                                        | Required              |
-| `url`                      | The URL to send messages to.                                                                               | Required              |
-| `method`                   | The HTTP method to use when hitting the URL above.                                                         | `POST`                |
-| `headers`                  | Additional headers to send in the request.                                                                 | None                  |
-| `retries`                  | How many times to try the request before marking as failed.                                                | `3`                   |
-| `retryDelay`               | How much to wait between retries, in milliseconds.                                                         | `1000` (1 second)     |
-| `dlq`                      | The DLQ (Dead-Letter-Queue) topic to forward failed messages to. Set to `false` to disable.               | `plt-kafka-hooks-dlq` |
-| `includeAttemptInRequests` | If to include the current attempt number in the requests in the `x-plt-kafka-hooks-attempt` header.        | `true`                |
+| Option                     | Description                                                                                         | Default               |
+| -------------------------- | --------------------------------------------------------------------------------------------------- | --------------------- |
+| `topic`                    | The topic to consume messages from.                                                                 | Required              |
+| `url`                      | The URL to send messages to.                                                                        | Required              |
+| `method`                   | The HTTP method to use when hitting the URL above.                                                  | `POST`                |
+| `headers`                  | Additional headers to send in the request.                                                          | None                  |
+| `retries`                  | How many times to try the request before marking as failed.                                         | `3`                   |
+| `retryDelay`               | How much to wait between retries, in milliseconds.                                                  | `1000` (1 second)     |
+| `dlq`                      | The DLQ (Dead-Letter-Queue) topic to forward failed messages to. Set to `false` to disable.         | `plt-kafka-hooks-dlq` |
+| `includeAttemptInRequests` | If to include the current attempt number in the requests in the `x-plt-kafka-hooks-attempt` header. | `true`                |
 
 ### Request/Response Configuration
 
 Each item in the `requestResponse` array supports these options:
 
-| Option          | Description                                           | Default    |
-| --------------- | ----------------------------------------------------- | ---------- |
-| `path`          | HTTP endpoint path to expose (supports path parameters) | Required   |
-| `requestTopic`  | Kafka topic to publish requests to                   | Required   |
-| `responseTopic` | Kafka topic to consume responses from                | Required   |
-| `timeout`       | Request timeout in milliseconds                      | `30000`    |
+| Option          | Description                                             | Default  |
+| --------------- | ------------------------------------------------------- | -------- |
+| `path`          | HTTP endpoint path to expose (supports path parameters) | Required |
+| `requestTopic`  | Kafka topic to publish requests to                      | Required |
+| `responseTopic` | Kafka topic to consume responses from                   | Required |
+| `timeout`       | Request timeout in milliseconds                         | `30000`  |
 
 ### Dead Letter Queue (DLQ)
 
@@ -115,12 +107,12 @@ By default, failed messages are sent to the `plt-kafka-hooks-dlq` topic. You can
       {
         "topic": "events",
         "url": "https://service.example.com",
-        "dlq": "custom-dlq-topic"  // Custom DLQ topic name
+        "dlq": "custom-dlq-topic" // Custom DLQ topic name
       },
       {
         "topic": "notifications",
         "url": "https://service.example.com/notifications",
-        "dlq": false  // Disable DLQ for this topic
+        "dlq": false // Disable DLQ for this topic
       }
     ]
   }
@@ -153,6 +145,37 @@ Messages sent to the DLQ contain detailed information about the failure:
 ```
 
 The original message value is preserved as a base64-encoded string to maintain its exact binary content.
+
+## Requirements
+
+You'll need a Kafka server running. If you don't have one, you can use this `docker-compose.yml` file as a starter:
+
+```yaml
+---
+services:
+  kafka:
+    image: apache/kafka:3.9.0
+    ports:
+      - '9092:9092'
+    environment:
+      _JAVA_OPTIONS: '-XX:UseSVE=0'
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENERS: 'CONTROLLER://:29093,PLAINTEXT://:19092,MAIN://:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:19092,MAIN://localhost:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,MAIN:PLAINTEXT'
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      CLUSTER_ID: '4L6g3nShT-eMCtK--X86sw'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+```
 
 ## APIs
 
@@ -187,6 +210,7 @@ The kafka-hooks library supports HTTP request/response patterns routed through K
 The request/response pattern supports both path parameters and query strings, which are automatically passed to Kafka consumers via headers.
 
 **Path Parameters:**
+
 ```json
 {
   "path": "/api/users/:userId/orders/:orderId"
@@ -194,6 +218,7 @@ The request/response pattern supports both path parameters and query strings, wh
 ```
 
 **Request with path parameters:**
+
 ```bash
 curl -X POST http://localhost:3042/api/users/123/orders/456 \
   -H "Content-Type: application/json" \
@@ -201,6 +226,7 @@ curl -X POST http://localhost:3042/api/users/123/orders/456 \
 ```
 
 **Kafka message headers include:**
+
 ```json
 {
   "x-plt-kafka-hooks-path-params": "{\"userId\":\"123\",\"orderId\":\"456\"}"
@@ -208,6 +234,7 @@ curl -X POST http://localhost:3042/api/users/123/orders/456 \
 ```
 
 **Query String Parameters:**
+
 ```bash
 curl -X POST http://localhost:3042/api/search?q=coffee&limit=10&sort=price \
   -H "Content-Type: application/json" \
@@ -215,6 +242,7 @@ curl -X POST http://localhost:3042/api/search?q=coffee&limit=10&sort=price \
 ```
 
 **Kafka message headers include:**
+
 ```json
 {
   "x-plt-kafka-hooks-query-string": "{\"q\":\"coffee\",\"limit\":\"10\",\"sort\":\"price\"}"
@@ -224,6 +252,7 @@ curl -X POST http://localhost:3042/api/search?q=coffee&limit=10&sort=price \
 #### Usage Example
 
 **Make a request:**
+
 ```bash
 curl -X POST http://localhost:3042/api/process \
   -H "Content-Type: application/json" \
@@ -231,6 +260,7 @@ curl -X POST http://localhost:3042/api/process \
 ```
 
 **Request message published to Kafka:**
+
 ```json
 {
   "headers": {
@@ -242,6 +272,7 @@ curl -X POST http://localhost:3042/api/process \
 ```
 
 **Service processes and responds:**
+
 ```bash
 # External service publishes response
 curl -X POST http://localhost:3042/topics/response-topic \
@@ -252,6 +283,7 @@ curl -X POST http://localhost:3042/topics/response-topic \
 ```
 
 **HTTP response returned to client:**
+
 ```json
 {
   "result": "success",
@@ -263,27 +295,28 @@ curl -X POST http://localhost:3042/topics/response-topic \
 
 Request messages automatically include these headers when published to Kafka:
 
-| Header                               | Description                                    | When Added |
-| ------------------------------------ | ---------------------------------------------- | ---------- |
-| `x-plt-kafka-hooks-correlation-id`   | Unique correlation ID for request matching    | Always     |
-| `x-plt-kafka-hooks-path-params`      | JSON string of path parameters                | When path parameters present |
-| `x-plt-kafka-hooks-query-string`     | JSON string of query string parameters        | When query parameters present |
-| `content-type`                       | Content type of the request                   | Always     |
+| Header                             | Description                                | When Added                    |
+| ---------------------------------- | ------------------------------------------ | ----------------------------- |
+| `x-plt-kafka-hooks-correlation-id` | Unique correlation ID for request matching | Always                        |
+| `x-plt-kafka-hooks-path-params`    | JSON string of path parameters             | When path parameters present  |
+| `x-plt-kafka-hooks-query-string`   | JSON string of query string parameters     | When query parameters present |
+| `content-type`                     | Content type of the request                | Always                        |
 
 #### Response Headers
 
 Response messages support these special headers:
 
-| Header                               | Description                                    | Default |
-| ------------------------------------ | ---------------------------------------------- | ------- |
-| `x-plt-kafka-hooks-correlation-id`   | Must match the original request correlation ID | Required|
-| `x-status-code`                      | HTTP status code for the response             | `200`   |
-| `content-type`                       | Content type of the response                  | Preserved |
+| Header                             | Description                                    | Default   |
+| ---------------------------------- | ---------------------------------------------- | --------- |
+| `x-plt-kafka-hooks-correlation-id` | Must match the original request correlation ID | Required  |
+| `x-status-code`                    | HTTP status code for the response              | `200`     |
+| `content-type`                     | Content type of the response                   | Preserved |
 
 #### Error Handling
 
 **Timeout Response:**
 If no response is received within the configured timeout:
+
 ```json
 {
   "code": "HTTP_ERROR_GATEWAY_TIMEOUT",
@@ -305,50 +338,6 @@ Responses for non-existent correlation IDs are logged as warnings and ignored.
 - **Async Processing**: Handle long-running tasks with HTTP-like interface
 - **Event-Driven APIs**: Build responsive APIs on event-driven architecture
 - **Service Decoupling**: Maintain HTTP contracts while decoupling services via Kafka
-
-## Standalone Install & Setup
-
-You can generate a standalone application with:
-
-```bash
-npx --package @platformatic/kafka-hooks -c create-platformatic-kafka-hooks
-cd kafka-hooks-app
-npm i
-npx platformatic start
-```
-
-You can then edit your `.env` file and configure the `PLT_KAFKA_BROKER` env variable to select your Kafka broker.
-
-### Requirements
-
-You'll need a Kafka server running. If you don't have one, you can use this `docker-compose.yml` file as a starter:
-
-```yaml
----
-services:
-  kafka:
-    image: apache/kafka:3.9.0
-    ports:
-      - '9092:9092'
-    environment:
-      _JAVA_OPTIONS: '-XX:UseSVE=0'
-      KAFKA_NODE_ID: 1
-      KAFKA_LISTENERS: 'CONTROLLER://:29093,PLAINTEXT://:19092,MAIN://:9092'
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:19092,MAIN://localhost:9092'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,MAIN:PLAINTEXT'
-      KAFKA_PROCESS_ROLES: 'broker,controller'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
-      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      CLUSTER_ID: '4L6g3nShT-eMCtK--X86sw'
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
-      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
-```
 
 ## License
 

@@ -50,25 +50,29 @@ test('should return Generator config fields definitions', async () => {
       var: 'PLT_KAFKA_BROKER',
       label: 'Which is the address of one of the Kafka brokers?',
       default: 'localhost:9092',
-      type: 'string'
+      type: 'string',
+      configValue: 'broker'
     },
     {
       var: 'PLT_KAFKA_TOPIC',
       label: 'Which Kafka topic do you want to use?',
       default: 'events',
-      type: 'string'
+      type: 'string',
+      configValue: 'topic'
     },
     {
       var: 'PLT_KAFKA_URL',
       label: 'Which URL you want to forward messages to?',
       default: 'http://localhost:3000',
-      type: 'string'
+      type: 'string',
+      configValue: 'url'
     },
     {
       var: 'PLT_KAFKA_CONSUMER_GROUP',
       label: 'Which Kafka consumer group do you want to use?',
       default: 'plt-kafka-hooks-consumer',
-      type: 'string'
+      type: 'string',
+      configValue: 'consumerGroup'
     }
   ])
 })

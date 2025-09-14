@@ -50,7 +50,7 @@ importers:
         version: 0.12.2(@typescript-eslint/utils@8.42.0(eslint@9.35.0)(typescript@5.9.2))(eslint@9.35.0)(typescript@5.9.2)
       pino:
         specifier: ^9.6.0
-        version: 9.9.4
+        version: 9.9.5
       pino-pretty:
         specifier: ^13.0.0
         version: 13.1.1
@@ -2347,8 +2347,8 @@ packages:
   pino-std-serializers@7.0.0:
     resolution: {integrity: sha512-e906FRY0+tV27iq4juKzSYPbUj2do2X2JX4EzSca1631EB2QJQUqGbDuERal7LCtOpxl6x3+nvo9NPZcmjkiFA==}
 
-  pino@9.9.4:
-    resolution: {integrity: sha512-d1XorUQ7sSKqVcYdXuEYs2h1LKxejSorMEJ76XoZ0pPDf8VzJMe7GlPXpMBZeQ9gE4ZPIp5uGD+5Nw7scxiigg==}
+  pino@9.9.5:
+    resolution: {integrity: sha512-d1s98p8/4TfYhsJ09r/Azt30aYELRi6NNnZtEbqFw6BoGsdPVf5lKNK3kUwH8BmJJfpTLNuicjUQjaMbd93dVg==}
     hasBin: true
 
   possible-typed-array-names@1.1.0:
@@ -3557,7 +3557,7 @@ snapshots:
       '@platformatic/telemetry': 3.0.2
       execa: 9.6.0
       fast-json-patch: 3.1.1
-      pino: 9.9.4
+      pino: 9.9.5
       pino-abstract-transport: 2.0.0
       semver: 7.7.2
       split2: 4.2.0
@@ -3581,7 +3581,7 @@ snapshots:
       fast-json-patch: 3.1.1
       json5: 2.2.3
       leven: 3.1.0
-      pino: 9.9.4
+      pino: 9.9.5
       pino-pretty: 13.1.1
       semver: 7.7.2
       undici: 7.11.0
@@ -3594,7 +3594,7 @@ snapshots:
       change-case-all: 2.1.0
       execa: 9.6.0
       fastify: 5.6.0
-      pino: 9.9.4
+      pino: 9.9.5
       undici: 7.15.0
 
   '@platformatic/http-metrics@0.2.1':
@@ -3664,7 +3664,7 @@ snapshots:
       minimist: 1.2.8
       my-ua-parser: 2.0.4
       ora: 6.3.1
-      pino: 9.9.4
+      pino: 9.9.5
       pino-pretty: 13.1.1
       rfdc: 1.4.1
       semgrator: 0.3.0
@@ -4754,7 +4754,7 @@ snapshots:
       fast-json-stringify: 6.0.1
       find-my-way: 9.3.0
       light-my-request: 6.6.0
-      pino: 9.9.4
+      pino: 9.9.5
       process-warning: 5.0.0
       rfdc: 1.4.1
       secure-json-parse: 4.0.0
@@ -5564,7 +5564,7 @@ snapshots:
 
   pino-std-serializers@7.0.0: {}
 
-  pino@9.9.4:
+  pino@9.9.5:
     dependencies:
       atomic-sleep: 1.0.0
       fast-redact: 3.5.0

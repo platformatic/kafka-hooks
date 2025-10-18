@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@platformatic/foundation':
         specifier: ^3.0.2
-        version: 3.11.0
+        version: 3.13.1
       '@platformatic/kafka':
         specifier: ^1.8.0
         version: 1.17.1
@@ -787,8 +787,8 @@ packages:
     resolution: {integrity: sha512-5aAQtCxWqUnP/y+wGflPjW4YPImnpJIJw80TVuJCr40Byic5iedAQB5e45RMrUdnrGUEpfdtIUkAbBH4WWG/Kw==}
     engines: {node: '>=22.19.0'}
 
-  '@platformatic/foundation@3.11.0':
-    resolution: {integrity: sha512-iQwZOZegBnSf2y3b6AQ0s5Emr3pZAbK5N6wcjfGhMp3DUJ8CPjtITEnULWAbqD08/kSC3MpEmgdLr7ODkPnK3g==}
+  '@platformatic/foundation@3.13.1':
+    resolution: {integrity: sha512-MST81l2O8lQx0QJgjbmdvaZsCo9v7naPYQm5+wBzW2Gv+bCRZSWIcfduNWhDg9nFccILCW6Ox66eAaL0FbDD4A==}
     engines: {node: '>=22.19.0'}
 
   '@platformatic/foundation@3.5.1':
@@ -3742,7 +3742,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@platformatic/foundation@3.11.0':
+  '@platformatic/foundation@3.13.1':
     dependencies:
       '@fastify/deepmerge': 2.0.2
       '@fastify/error': 4.2.0

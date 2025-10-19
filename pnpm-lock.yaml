@@ -50,7 +50,7 @@ importers:
         version: 0.12.2(@typescript-eslint/utils@8.44.0(eslint@9.38.0)(typescript@5.9.2))(eslint@9.38.0)(typescript@5.9.2)
       pino:
         specifier: ^9.6.0
-        version: 9.13.1
+        version: 9.14.0
       pino-pretty:
         specifier: ^13.0.0
         version: 13.1.2
@@ -778,6 +778,9 @@ packages:
   '@opentelemetry/semantic-conventions@1.36.0':
     resolution: {integrity: sha512-TtxJSRD8Ohxp6bKkhrm27JRHAxPczQA7idtcTOMYI+wQRRrfgqxHv1cFbCApcSnNjtXkmzFozn6jQtFrOmbjPQ==}
     engines: {node: '>=14'}
+
+  '@pinojs/redact@0.4.0':
+    resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -2439,8 +2442,8 @@ packages:
   pino-std-serializers@7.0.0:
     resolution: {integrity: sha512-e906FRY0+tV27iq4juKzSYPbUj2do2X2JX4EzSca1631EB2QJQUqGbDuERal7LCtOpxl6x3+nvo9NPZcmjkiFA==}
 
-  pino@9.13.1:
-    resolution: {integrity: sha512-Szuj+ViDTjKPQYiKumGmEn3frdl+ZPSdosHyt9SnUevFosOkMY2b7ipxlEctNKPmMD/VibeBI+ZcZCJK+4DPuw==}
+  pino@9.14.0:
+    resolution: {integrity: sha512-8OEwKp5juEvb/MjpIc4hjqfgCNysrS94RIOMXYvpYCdm/jglrKEiAYmiumbmGhCvs+IcInsphYDFwqrjr7398w==}
     hasBin: true
 
   possible-typed-array-names@1.1.0:
@@ -2686,9 +2689,6 @@ packages:
 
   single-user-cache@2.0.0:
     resolution: {integrity: sha512-AGsTqnYmJH59HtK/5RhCfWh0cz3/Y2bxJf4w+0chSdkg1WmS8vYMnFGZc+C/m0gDZFl4iQ9sSLv7oURP6aKJwQ==}
-
-  slow-redact@0.3.2:
-    resolution: {integrity: sha512-MseHyi2+E/hBRqdOi5COy6wZ7j7DxXRz9NkseavNYSvvWC06D8a5cidVZX3tcG5eCW3NIyVU4zT63hw0Q486jw==}
 
   snappy@7.3.3:
     resolution: {integrity: sha512-UDJVCunvgblRpfTOjo/uT7pQzfrTsSICJ4yVS4aq7SsGBaUSpJwaVP15nF//jqinSLpN7boe/BqbUmtWMTQ5MQ==}
@@ -3719,6 +3719,8 @@ snapshots:
 
   '@opentelemetry/semantic-conventions@1.36.0': {}
 
+  '@pinojs/redact@0.4.0': {}
+
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
@@ -3731,7 +3733,7 @@ snapshots:
       '@platformatic/telemetry': 3.5.1
       execa: 9.6.0
       fast-json-patch: 3.1.1
-      pino: 9.13.1
+      pino: 9.14.0
       pino-abstract-transport: 2.0.0
       semver: 7.7.3
       split2: 4.2.0
@@ -3755,7 +3757,7 @@ snapshots:
       fast-json-patch: 3.1.1
       json5: 2.2.3
       leven: 3.1.0
-      pino: 9.13.1
+      pino: 9.14.0
       pino-pretty: 13.1.2
       semver: 7.7.3
       undici: 7.11.0
@@ -3774,7 +3776,7 @@ snapshots:
       fast-json-patch: 3.1.1
       json5: 2.2.3
       leven: 3.1.0
-      pino: 9.13.1
+      pino: 9.14.0
       pino-pretty: 13.1.2
       semver: 7.7.3
       undici: 7.11.0
@@ -3787,7 +3789,7 @@ snapshots:
       change-case-all: 2.1.0
       execa: 9.6.0
       fastify: 5.6.1
-      pino: 9.13.1
+      pino: 9.14.0
       undici: 7.16.0
 
   '@platformatic/http-metrics@0.2.1':
@@ -3856,7 +3858,7 @@ snapshots:
       minimist: 1.2.8
       my-ua-parser: 2.0.4
       ora: 6.3.1
-      pino: 9.13.1
+      pino: 9.14.0
       pino-pretty: 13.1.2
       rfdc: 1.4.1
       semgrator: 0.3.0
@@ -4937,7 +4939,7 @@ snapshots:
       fast-json-stringify: 6.0.1
       find-my-way: 9.3.0
       light-my-request: 6.6.0
-      pino: 9.13.1
+      pino: 9.14.0
       process-warning: 5.0.0
       rfdc: 1.4.1
       secure-json-parse: 4.0.0
@@ -5746,8 +5748,9 @@ snapshots:
 
   pino-std-serializers@7.0.0: {}
 
-  pino@9.13.1:
+  pino@9.14.0:
     dependencies:
+      '@pinojs/redact': 0.4.0
       atomic-sleep: 1.0.0
       on-exit-leak-free: 2.1.2
       pino-abstract-transport: 2.0.0
@@ -5756,7 +5759,6 @@ snapshots:
       quick-format-unescaped: 4.0.4
       real-require: 0.2.0
       safe-stable-stringify: 2.5.0
-      slow-redact: 0.3.2
       sonic-boom: 4.2.0
       thread-stream: 3.1.0
 
@@ -6026,8 +6028,6 @@ snapshots:
   single-user-cache@2.0.0:
     dependencies:
       safe-stable-stringify: 2.5.0
-
-  slow-redact@0.3.2: {}
 
   snappy@7.3.3:
     optionalDependencies:

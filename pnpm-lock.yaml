@@ -13,7 +13,7 @@ importers:
         version: 3.15.0
       '@platformatic/kafka':
         specifier: ^1.8.0
-        version: 1.18.0
+        version: 1.20.0
       '@platformatic/service':
         specifier: ^3.0.2
         version: 3.5.1(typescript@5.9.2)
@@ -809,8 +809,8 @@ packages:
     resolution: {integrity: sha512-bCxcNsohY4kAn7S6g0mbZQZx1QUIJhuk2vdn0ka99UqKrTqc01QidGN2n6nInrWEOECcuXv4o2VuPug+1ld8vQ==}
     engines: {node: '>=22.19.0'}
 
-  '@platformatic/kafka@1.18.0':
-    resolution: {integrity: sha512-sn8M1iQoTuOTDx9+QSROivO8+DjI0p/yWJ7vFRh7lyNhG4jRNmW4Jt5CyyggwiqK78nrVsouJmn14Bhk9Oohzw==}
+  '@platformatic/kafka@1.20.0':
+    resolution: {integrity: sha512-TubyEQRlsmstdx9xQAu5TspG0rFW/FAwqxdX0BzZgo3dHDmx49MhCcXFnDFW1c39Fci7emHSFe4BfORevKCwJA==}
     engines: {node: '>= 20.19.4 || >= 22.18.0 || >= 24.6.0'}
 
   '@platformatic/metrics@3.5.1':
@@ -3801,7 +3801,7 @@ snapshots:
       '@fastify/error': 4.2.0
       '@watchable/unpromise': 1.0.2
 
-  '@platformatic/kafka@1.18.0':
+  '@platformatic/kafka@1.20.0':
     dependencies:
       ajv: 8.17.1
       debug: 4.4.3
